@@ -1,0 +1,30 @@
+{
+  "nav": {
+    "dictionary": "Dictionary",
+    "learn": "Learn Words",
+    "sentences": "Build Sentences",
+    "rules": "Grammar Rules",
+    "sources": "Sources",
+    "stats": "Statistics",
+    "login": "Log In",
+    "register": "Sign Up",
+    "logout": "Log Out"
+  },
+  "home": {
+    "quickAccess": "Quick Access",
+    "wordOfDay": "Word of the Day",
+    "learnMore": "Learn More"
+  },
+  "cards": {
+    "dictionary": "Search and filter words",
+    "learn": "Practice with flashcards",
+    "sentences": "Example sentences and exercises",
+    "rules": "Grammar and spelling rules",
+    "sources": "References and documents",
+    "stats": "Word and progress charts"
+  },
+  "lang": {
+    "tr": "Türkçe",
+    "en": "English"
+  }
+}

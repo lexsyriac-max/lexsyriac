@@ -1,0 +1,30 @@
+{
+  "nav": {
+    "dictionary": "Sözlük",
+    "learn": "Kelime Öğren",
+    "sentences": "Cümle Kur",
+    "rules": "Kurallar",
+    "sources": "Kaynaklar",
+    "stats": "İstatistikler",
+    "login": "Giriş Yap",
+    "register": "Kayıt Ol",
+    "logout": "Çıkış Yap"
+  },
+  "home": {
+    "quickAccess": "Hızlı Erişim",
+    "wordOfDay": "Günün Kelimesi",
+    "learnMore": "Daha Fazla Öğren"
+  },
+  "cards": {
+    "dictionary": "Kelime ara ve filtrele",
+    "learn": "Flashcard ile pratik yap",
+    "sentences": "Örnek cümleler ve alıştırma",
+    "rules": "Gramer ve yazım kuralları",
+    "sources": "Referans ve dokümanlar",
+    "stats": "Kelime ve ilerleme grafikleri"
+  },
+  "lang": {
+    "tr": "Türkçe",
+    "en": "English"
+  }
+}
