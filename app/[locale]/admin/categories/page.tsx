@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useLocale } from 'next-intl'
-import { createClient } from '@/app/lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 type Category = {
   id: string

@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import mammoth from 'mammoth'
 import * as XLSX from 'xlsx'
-import { createClient } from '@/app/lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 type ExtractedWord = {
   word: string

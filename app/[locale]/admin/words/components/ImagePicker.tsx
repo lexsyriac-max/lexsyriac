@@ -58,7 +58,7 @@ export default function ImagePicker({ query, label, onSelect, onClose }: Props) 
     const url = await saveImageToStorage(
       selected,
       async (blob, path, contentType) => {
-        const { createClient } = await import('@/app/lib/supabase')
+        const { createClient } = await import('@/lib/supabase')
         const supabase = createClient()
 
         const { data, error } = await supabase.storage

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import NavBar from '../../NavBar'
 import { useLocale } from 'next-intl'
-import { createClient } from '../../../lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 type Word = {
   id: string

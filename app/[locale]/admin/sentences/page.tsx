@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { createClient } from '@/app/lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 type Language = 'turkish' | 'english' | 'syriac'
 type Tense = 'present' | 'past' | 'future' | 'aorist'

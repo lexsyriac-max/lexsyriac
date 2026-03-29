@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import NavBar from '../NavBar'
-import { createClient } from '../../lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 export default function StatsPage() {
   const supabase = createClient()

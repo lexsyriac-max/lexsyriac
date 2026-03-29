@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import { useRouter } from 'next/navigation'
 import { useLocale } from 'next-intl'
 import type { User, Session } from '@supabase/supabase-js'
-import { createClient } from '../lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 interface AuthContextValue {
   user: User | null

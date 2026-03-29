@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import NavBar from '../NavBar'
-import { createClient } from '../../lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 type Language = 'all' | 'turkish' | 'english' | 'syriac' | 'german' | 'french'
 

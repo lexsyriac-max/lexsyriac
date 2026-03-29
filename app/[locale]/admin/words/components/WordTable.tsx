@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import * as XLSX from 'xlsx'
-import { createClient } from '@/app/lib/supabase'
+import { createClient } from '@/lib/supabase'
 import { Word, TYPE_OPTIONS, EKSIK_OPTIONS } from '@/lib/types/words'
 import DeleteAllButton from './DeleteAllButton'
 

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useTranslations, useLocale } from 'next-intl'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from './AuthContext'
-import { createClient } from '../lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 export default function NavBar() {
   const t = useTranslations('nav')
@@ -52,6 +52,7 @@ export default function NavBar() {
 
   const navLinks = [
     { href: '/dictionary', label: t('dictionary') },
+    { href: '/categories', label: 'Kategoriler' },
     { href: '/learn', label: t('learn') },
     { href: '/sentences', label: t('sentences') },
     { href: '/rules', label: t('rules') },

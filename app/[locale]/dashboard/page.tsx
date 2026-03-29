@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useLocale } from 'next-intl'
 import { useAuth } from '../AuthContext'
-import { createClient } from '../../lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 export default function DashboardPage() {
   const { user, loading, signOut } = useAuth()

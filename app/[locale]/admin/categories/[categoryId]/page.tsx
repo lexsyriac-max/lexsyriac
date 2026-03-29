@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { createClient } from '@/app/lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 type Category = {
   id: string

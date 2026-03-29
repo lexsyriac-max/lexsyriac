@@ -1,7 +1,7 @@
 // lib/services/db.ts
 // Tüm Supabase işlemleri burada — page.tsx sadece bu fonksiyonları çağırır
 
-import { createClient } from '@/app/lib/supabase'
+import { createClient } from '@/lib/supabase'
 import { Word, VALID_TYPES } from '@/lib/types/words'
 
 export interface DbResult<T = void> {

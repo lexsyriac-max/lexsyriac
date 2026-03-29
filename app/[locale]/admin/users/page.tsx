@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useLocale } from 'next-intl'
-import { createClient } from '../../../lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 type Profile = {
   id: string

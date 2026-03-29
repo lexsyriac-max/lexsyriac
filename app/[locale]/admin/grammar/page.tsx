@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/app/lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 interface Rule {
   id: string

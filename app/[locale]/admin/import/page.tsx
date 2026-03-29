@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { createClient } from '@/app/lib/supabase'
+import { createClient } from '@/lib/supabase'
 import { VALID_TYPES } from '@/lib/types/words'
 import * as XLSX from 'xlsx'
 

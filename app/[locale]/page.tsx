@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useTranslations, useLocale } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import NavBar from './NavBar'
-import { createClient } from '../lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 type Word = {
   id: string
@@ -69,43 +69,68 @@ export default function HomePage() {
     setLoadingCategories(false)
   }
 
-  const hourlyWord = useMemo(() => {
-    if (!words.length) return null
-    const hour = new Date().getHours()
-    const index = hour % words.length
-    return words[index]
-  }, [words])
-
-  const randomTags = useMemo(() => {
+  const randomWords = useMemo(() => {
     if (!words.length) return []
 
-    const shuffled = [...words].sort(() => 0.5 - Math.random())
-    return shuffled.slice(0, 5)
+    return [...words]
+      .map((word) => ({ word, sort: Math.random() }))
+      .sort((a, b) => a.sort - b.sort)
+      .slice(0, 4)
+      .map(({ word }) => word)
   }, [words])
 
   const stats = [
-    { label: 'Toplam Kelime', value: String(words.length || 0), icon: '📚' },
+    { label: 'Kelime', value: String(words.length || 0), icon: '📚' },
     {
-      label: 'Görselli Kelime',
+      label: 'Görsel',
       value: String(words.filter((w) => !!w.image_url).length || 0),
       icon: '🖼️',
     },
     {
-      label: 'Sesli Kelime',
+      label: 'Ses',
       value: String(words.filter((w) => !!w.audio_url).length || 0),
       icon: '🔊',
     },
-    { label: 'Dil Modülleri', value: '6', icon: '🗂️' },
+    { label: 'Modül', value: '6', icon: '🧩' },
   ]
 
-  const quickLinks = [
-    { href: '/dictionary', label: t('nav.dictionary'), desc: t('cards.dictionary'), icon: '🔍', color: 'teal' },
-    { href: '/learn', label: t('nav.learn'), desc: t('cards.learn'), icon: '🎴', color: 'amber' },
-    { href: '/practice', label: 'Pratik', desc: 'Kategorilere göre hızlı öğrenme alanı', icon: '🧩', color: 'green' },
-    { href: '/sentences', label: t('nav.sentences'), desc: t('cards.sentences'), icon: '✍️', color: 'green' },
-    { href: '/rules', label: t('nav.rules'), desc: t('cards.rules'), icon: '📖', color: 'teal' },
-    { href: '/resources', label: t('nav.sources'), desc: t('cards.sources'), icon: '🗃️', color: 'amber' },
-    { href: '/stats', label: t('nav.stats'), desc: t('cards.stats'), icon: '📊', color: 'green' },
+  const modules = [
+    {
+      href: '/dictionary',
+      title: t('nav.dictionary'),
+      desc: 'Kelime havuzunda ara, filtrele ve detay gör.',
+      icon: '📖',
+    },
+    {
+      href: '/learn',
+      title: t('nav.learn'),
+      desc: 'Kelime öğrenme akışları ve görsel destekli çalışma alanı.',
+      icon: '🎓',
+    },
+    {
+      href: '/categories',
+      title: 'Kategoriler',
+      desc: 'Kelimeleri konu başlıklarına göre toplu incele.',
+      icon: '🗂️',
+    },
+    {
+      href: '/sentences',
+      title: t('nav.sentences'),
+      desc: 'Cümle kurma ve cümle çalışma modülleri için merkez alan.',
+      icon: '✍️',
+    },
+    {
+      href: '/rules',
+      title: t('nav.rules'),
+      desc: 'Dil kuralları ve öğretici açıklamaları incele.',
+      icon: '📚',
+    },
+    {
+      href: '/resources',
+      title: t('nav.sources'),
+      desc: 'Kaynaklar, notlar ve yardımcı içerikler.',
+      icon: '🗃️',
+    },
   ]
 
   function handleSearchSubmit(e: React.FormEvent) {
@@ -115,10 +140,6 @@ export default function HomePage() {
     router.push(`/${locale}/dictionary?q=${encodeURIComponent(q)}`)
   }
 
-  function goToTaggedSearch(tag: string) {
-    router.push(`/${locale}/dictionary?q=${encodeURIComponent(tag)}`)
-  }
-
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)' }}>
       <NavBar />
@@ -126,7 +147,7 @@ export default function HomePage() {
       <section
         style={{
           background: 'linear-gradient(135deg, var(--color-primary) 0%, #0F3D47 100%)',
-          padding: '3.25rem 0 2.5rem',
+          padding: '3rem 0 2.4rem',
           position: 'relative',
           overflow: 'hidden',
         }}
@@ -134,9 +155,9 @@ export default function HomePage() {
         <div
           style={{
             position: 'absolute',
-            right: '-2rem',
+            right: '-1.5rem',
             top: '-1rem',
-            fontSize: '14rem',
+            fontSize: '13rem',
             color: 'rgba(255,255,255,0.04)',
             fontFamily: 'var(--font-display)',
             lineHeight: 1,
@@ -150,14 +171,14 @@ export default function HomePage() {
         <div className="container" style={{ position: 'relative' }}>
           <div
             style={{
-              maxWidth: 760,
+              maxWidth: 780,
               margin: '0 auto',
               textAlign: 'center',
             }}
           >
             <p
               style={{
-                color: 'rgba(255,255,255,0.6)',
+                color: 'rgba(255,255,255,0.62)',
                 fontSize: '0.78rem',
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
@@ -170,29 +191,29 @@ export default function HomePage() {
             <h1
               style={{
                 color: 'white',
-                fontSize: 'clamp(1.85rem, 4vw, 2.9rem)',
+                fontSize: 'clamp(1.9rem, 4vw, 3rem)',
                 fontFamily: 'var(--font-display)',
                 fontWeight: 700,
-                lineHeight: 1.15,
+                lineHeight: 1.12,
                 marginBottom: '1rem',
               }}
             >
-              Süryaniceyi keşfet,
+              Süryaniceyi düzenli,
               <br />
-              <span style={{ color: '#F4C87A' }}>kelime kelime öğren</span>
+              <span style={{ color: '#F4C87A' }}>modüler ve öğretici biçimde çalış</span>
             </h1>
 
             <p
               style={{
                 color: 'rgba(255,255,255,0.76)',
-                maxWidth: 620,
-                margin: '0 auto 1.5rem',
+                maxWidth: 650,
+                margin: '0 auto 1.4rem',
                 lineHeight: 1.65,
                 fontSize: '0.96rem',
               }}
             >
-              Türkçe, Süryanice ve İngilizce arasında arama yap, kelime hazneni geliştir,
-              kuralları incele ve dil öğrenme akışını tek bir merkezden yönet.
+              Kelime ara, kategoriye göre incele, kuralları çalış ve ileride eklenecek
+              kelime öğrenme, cümle kurma ve cümle öğrenme modüllerine tek merkezden ulaş.
             </p>
 
             <form
@@ -200,7 +221,7 @@ export default function HomePage() {
               style={{
                 display: 'flex',
                 gap: '0.5rem',
-                maxWidth: 620,
+                maxWidth: 640,
                 margin: '0 auto',
                 flexWrap: 'wrap',
               }}
@@ -223,69 +244,130 @@ export default function HomePage() {
 
             <div
               style={{
-                marginTop: '0.9rem',
-                display: 'flex',
-                gap: '0.5rem',
-                flexWrap: 'wrap',
-                justifyContent: 'center',
+                fontSize: '0.8rem',
+                color: 'rgba(255,255,255,0.7)',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                marginTop: '1rem',
+                marginBottom: '0.45rem',
               }}
             >
-              {randomTags.map((w) => (
-                <button
+              Rastgele Kelimeler
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+                gap: '0.6rem',
+                maxWidth: 820,
+                margin: '0 auto',
+              }}
+            >
+              {randomWords.map((w) => (
+                <div
                   key={w.id}
-                  type="button"
-                  onClick={() => goToTaggedSearch(w.turkish || w.english || '')}
                   style={{
-                    padding: '0.25rem 0.75rem',
+                    padding: '0.58rem 0.72rem',
                     background: 'rgba(255,255,255,0.1)',
                     border: '1px solid rgba(255,255,255,0.15)',
-                    borderRadius: 999,
-                    fontSize: '0.8125rem',
-                    color: 'rgba(255,255,255,0.75)',
-                    cursor: 'pointer',
+                    borderRadius: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    minHeight: 74,
+                    transition: 'all 0.15s ease',
+                    backdropFilter: 'blur(4px)',
+                    textAlign: 'left',
                   }}
                 >
-                  {w.turkish || w.english}
-                </button>
+                  <div
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 10,
+                      overflow: 'hidden',
+                      flexShrink: 0,
+                      background: 'rgba(255,255,255,0.12)',
+                      border: '1px solid rgba(255,255,255,0.16)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {w.image_url ? (
+                      <img
+                        src={w.image_url}
+                        alt={w.turkish || 'kelime'}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                        }}
+                      />
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                          color: 'rgba(255,255,255,0.65)',
+                        }}
+                      >
+                        —
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ minWidth: 0, lineHeight: 1.22 }}>
+                    <div
+                      style={{
+                        fontSize: '0.85rem',
+                        fontWeight: 700,
+                        color: 'white',
+                        marginBottom: '0.05rem',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {w.turkish || '—'}
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: '0.95rem',
+                        color: '#F4C87A',
+                        fontFamily: 'var(--font-display)',
+                        marginBottom: '0.05rem',
+                      }}
+                    >
+                      {w.syriac || '—'}
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: '0.75rem',
+                        color: 'rgba(255,255,255,0.75)',
+                      }}
+                    >
+                      {w.english || '—'}
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: '0.68rem',
+                        color: 'rgba(255,255,255,0.55)',
+                        marginTop: '0.05rem',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {w.transliteration || ''}
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
-        </div>
-      </section>
-
-      <section
-        style={{
-          padding: '1.5rem 0',
-          background: 'white',
-          borderBottom: '1px solid var(--color-border)',
-        }}
-      >
-        <div className="container">
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-              gap: '1rem',
-            }}
-          >
-            {stats.map((stat) => (
-              <div key={stat.label} style={{ textAlign: 'center', padding: '0.5rem' }}>
-                <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>{stat.icon}</div>
-                <div
-                  style={{
-                    fontFamily: 'var(--font-display)',
-                    fontSize: '1.5rem',
-                    fontWeight: 700,
-                    color: 'var(--color-primary)',
-                  }}
-                >
-                  {stat.value}
-                </div>
-                <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-muted)' }}>
-                  {stat.label}
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </section>
@@ -298,9 +380,82 @@ export default function HomePage() {
             gap: '1.75rem',
           }}
         >
-          <div>
-            <h2 style={{ marginBottom: '1.1rem', fontSize: '1.2rem' }}>
-              Öne Çıkan Kategoriler
+          <section>
+            <h2 style={{ marginBottom: '1rem', fontSize: '1.15rem' }}>
+              Modüller
+            </h2>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+                gap: '1rem',
+              }}
+            >
+              {modules.map((module) => (
+                <Link
+                  key={module.href}
+                  href={`/${locale}${module.href}`}
+                  style={{ textDecoration: 'none' }}
+                >
+                  <div
+                    className="card"
+                    style={{
+                      padding: '1.1rem',
+                      minHeight: 118,
+                      display: 'flex',
+                      gap: '0.9rem',
+                      alignItems: 'flex-start',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 10,
+                        background: 'var(--color-primary-light)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        fontSize: '1.35rem',
+                      }}
+                    >
+                      {module.icon}
+                    </div>
+
+                    <div>
+                      <div
+                        style={{
+                          fontSize: '0.96rem',
+                          fontWeight: 700,
+                          color: 'var(--color-text)',
+                          marginBottom: '0.2rem',
+                        }}
+                      >
+                        {module.title}
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: '0.82rem',
+                          color: 'var(--color-text-muted)',
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {module.desc}
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <h2 style={{ marginBottom: '1rem', fontSize: '1.15rem' }}>
+              Kategoriler
             </h2>
 
             {loadingCategories ? (
@@ -313,291 +468,79 @@ export default function HomePage() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                  gap: '1rem',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                  gap: '0.75rem',
                 }}
               >
                 {homeCategories.map((category) => (
                   <Link
                     key={category.id}
-                    href={`/${locale}/practice/${category.slug}`}
+                    href={`/${locale}/categories/${category.slug}`}
                     style={{ textDecoration: 'none' }}
                   >
                     <div
                       className="card"
                       style={{
-                        padding: '1.1rem',
-                        minHeight: 145,
+                        padding: '0.82rem 0.95rem',
+                        textAlign: 'center',
+                        fontWeight: 700,
+                        color: 'var(--color-text)',
                         cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
+                        minHeight: 0,
                       }}
                     >
-                      <div>
-                        <div
-                          style={{
-                            fontSize: '0.78rem',
-                            color: 'var(--color-text-subtle)',
-                            marginBottom: '0.35rem',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.06em',
-                          }}
-                        >
-                          Kategori
-                        </div>
-
-                        <div
-                          style={{
-                            fontSize: '1.06rem',
-                            fontWeight: 700,
-                            color: 'var(--color-text)',
-                            marginBottom: '0.45rem',
-                          }}
-                        >
-                          {category.label}
-                        </div>
-
-                        <div
-                          style={{
-                            fontSize: '0.87rem',
-                            color: 'var(--color-text-muted)',
-                            lineHeight: 1.55,
-                          }}
-                        >
-                          {category.description || 'Bu kategoriye ait kelimeleri hızlıca çalış.'}
-                        </div>
-                      </div>
-
-                      <div
-                        style={{
-                          marginTop: '1rem',
-                          fontSize: '0.84rem',
-                          color: 'var(--color-primary)',
-                          fontWeight: 600,
-                        }}
-                      >
-                        Kategoriye git →
-                      </div>
+                      {category.label}
                     </div>
                   </Link>
                 ))}
               </div>
             )}
-          </div>
-
-          <div>
-            <h2 style={{ marginBottom: '1.1rem', fontSize: '1.2rem' }}>
-              {t('home.quickAccess')}
-            </h2>
-
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                gap: '1rem',
-              }}
-            >
-              {quickLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={`/${locale}${link.href}`}
-                  style={{ textDecoration: 'none' }}
-                >
-                  <div
-                    className="card"
-                    style={{
-                      padding: '1.25rem',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      gap: '1rem',
-                      alignItems: 'flex-start',
-                      minHeight: 110,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: '1.5rem',
-                        width: 44,
-                        height: 44,
-                        background:
-                          link.color === 'teal'
-                            ? 'var(--color-primary-light)'
-                            : link.color === 'amber'
-                            ? 'var(--color-accent-light)'
-                            : '#EAF4EE',
-                        borderRadius: 10,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {link.icon}
-                    </div>
-
-                    <div>
-                      <div
-                        style={{
-                          fontWeight: 600,
-                          fontSize: '0.9375rem',
-                          color: 'var(--color-text)',
-                          marginBottom: '0.2rem',
-                        }}
-                      >
-                        {link.label}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: '0.8125rem',
-                          color: 'var(--color-text-muted)',
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        {link.desc}
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <h2 style={{ marginBottom: '1.1rem', fontSize: '1.2rem' }}>
-              Saatlik Kelime
-            </h2>
-
-            <div
-              className="card"
-              style={{
-                padding: '1.5rem',
-                background: 'linear-gradient(135deg, var(--color-primary-light), white)',
-                borderColor: 'rgba(26, 95, 110, 0.15)',
-                maxWidth: 520,
-              }}
-            >
-              {loadingWords ? (
-                <div style={{ color: 'var(--color-text-muted)' }}>Yükleniyor...</div>
-              ) : !hourlyWord ? (
-                <div style={{ color: 'var(--color-text-muted)' }}>Kelime bulunamadı.</div>
-              ) : (
-                <>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginBottom: '1rem',
-                      gap: '0.75rem',
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    <span className="badge badge-primary">
-                      {hourlyWord.word_type || 'kelime'}
-                    </span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-subtle)' }}>
-                      Saatlik seçim
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      width: '100%',
-                      aspectRatio: '16/9',
-                      borderRadius: 12,
-                      overflow: 'hidden',
-                      border: '1px solid var(--color-border)',
-                      background: '#F2EFE9',
-                      marginBottom: '1rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {hourlyWord.image_url ? (
-                      <img
-                        src={hourlyWord.image_url}
-                        alt={hourlyWord.turkish || 'kelime'}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                        }}
-                      />
-                    ) : (
-                      <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
-                        Görsel yok
-                      </span>
-                    )}
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: '2.5rem',
-                      color: 'var(--color-primary)',
-                      fontFamily: 'var(--font-display)',
-                      marginBottom: '0.75rem',
-                      textAlign: 'center',
-                    }}
-                  >
-                    {hourlyWord.syriac || '—'}
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: '0.5rem',
-                      justifyContent: 'center',
-                      flexWrap: 'wrap',
-                      marginBottom: '1rem',
-                    }}
-                  >
-                    <span className="badge badge-accent">{hourlyWord.turkish || '—'}</span>
-                    <span
-                      className="badge"
-                      style={{
-                        background: '#EAF4EE',
-                        color: '#2D7A4F',
-                        border: 'none',
-                      }}
-                    >
-                      {hourlyWord.english || '—'}
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      padding: '0.75rem',
-                      background: 'rgba(26, 95, 110, 0.06)',
-                      borderRadius: 8,
-                      fontSize: '0.875rem',
-                      color: 'var(--color-text-muted)',
-                      textAlign: 'center',
-                    }}
-                  >
-                    {hourlyWord.transliteration || 'Transliterasyon yok'}
-                  </div>
-
-                  <Link
-                    href={`/${locale}/dictionary/${hourlyWord.id}`}
-                    className="btn btn-primary"
-                    style={{ width: '100%', marginTop: '1rem' }}
-                  >
-                    Daha fazla öğren
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
+          </section>
         </div>
       </main>
+
+      <section
+        style={{
+          padding: '1.2rem 0',
+          background: '#FAFAF8',
+          borderTop: '1px solid var(--color-border)',
+          marginTop: '1.5rem',
+        }}
+      >
+        <div className="container">
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: '1.4rem',
+              flexWrap: 'wrap',
+              fontSize: '0.78rem',
+              color: 'var(--color-text-muted)',
+            }}
+          >
+            {stats.map((stat) => (
+              <div
+                key={stat.label}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                <span style={{ fontSize: '0.9rem' }}>{stat.icon}</span>
+                <span style={{ fontWeight: 700 }}>{stat.value}</span>
+                <span>{stat.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <footer
         style={{
           borderTop: '1px solid var(--color-border)',
           padding: '2rem 0',
           background: 'white',
-          marginTop: '2rem',
         }}
       >
         <div

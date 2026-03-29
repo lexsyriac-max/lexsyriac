@@ -5,7 +5,7 @@ import Link from 'next/link'
 import NavBar from '../NavBar'
 import { useLocale } from 'next-intl'
 import { useSearchParams } from 'next/navigation'
-import { createClient } from '../../lib/supabase'
+import { createClient } from '@/lib/supabase'
 
 type Word = {
   id: string
