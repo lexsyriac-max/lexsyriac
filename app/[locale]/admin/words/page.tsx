@@ -66,20 +66,20 @@ export default function AdminWordsPage() {
   }
 
   async function handleUpdateFromForm(
-    id: string,
-    payload: AddWordPayload
-  ): Promise<{ error: string | null }> {
-    const { error: e } = await updateWord({
-      id,
-      turkish: payload.turkish,
-      english: payload.english,
-      syriac: payload.syriac,
-      transliteration: payload.transliteration,
-      word_type: payload.word_type,
-      practice_group: payload.practice_group ?? null,
-      image_url: payload.image_url ?? null,
-      audio_url: payload.audio_url ?? null,
-    })
+  id: string,
+  payload: AddWordPayload
+): Promise<{ error: string | null }> {
+  const { error: e } = await updateWord({
+    id,
+    turkish: payload.turkish,
+    english: payload.english,
+    syriac: payload.syriac,
+    transliteration: payload.transliteration,
+    word_type: payload.word_type,
+    category_id: payload.category_id ?? null,
+    image_url: payload.image_url ?? null,
+    audio_url: payload.audio_url ?? null,
+  })
 
     if (e) return { error: e }
 
