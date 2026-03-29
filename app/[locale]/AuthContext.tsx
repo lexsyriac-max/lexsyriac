@@ -1,91 +1,135 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
-import { User, Session } from '@supabase/supabase-js'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { useLocale } from 'next-intl'
+import type { User, Session } from '@supabase/supabase-js'
 import { createClient } from '../lib/supabase'
 
-type Profile = {
-  id: string
-  email: string
-  full_name: string | null
-  avatar_url: string | null
-  role: 'admin' | 'member' | 'visitor'
-}
-
-type AuthContextType = {
+interface AuthContextValue {
   user: User | null
-  profile: Profile | null
   session: Session | null
   loading: boolean
+  signIn: (email: string, password: string) => Promise<{ error: string | null }>
+  signUp: (email: string, password: string, fullName: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
-  isAdmin: boolean
-  isMember: boolean
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  profile: null,
-  session: null,
-  loading: true,
-  signOut: async () => {},
-  isAdmin: false,
-  isMember: false,
-})
+const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
-  const [profile, setProfile] = useState<Profile | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
+  const locale = useLocale()
   const supabase = createClient()
-
-  const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    if (data) setProfile(data)
-  }
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session)
-        setUser(session?.user ?? null)
-        if (session?.user) fetchProfile(session.user.id)
-        else setProfile(null)
-        setLoading(false)
-      }
-    )
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+      setUser(session?.user ?? null)
+      setLoading(false)
+    })
 
     return () => subscription.unsubscribe()
-  }, [])
+  }, [supabase])
 
-  const signOut = async () => {
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) return { error: error.message }
+
+      const signedInUser = data.user
+
+      if (!signedInUser) {
+        return { error: 'Kullanıcı bilgisi alınamadı.' }
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', signedInUser.id)
+        .single()
+
+      if (profileError || !profile) {
+        await supabase.auth.signOut()
+        return { error: 'Kullanıcı profili bulunamadı.' }
+      }
+
+      if (profile.role === 'banned') {
+        await supabase.auth.signOut()
+        return { error: 'Bu hesap engellenmiştir.' }
+      }
+
+      router.refresh()
+
+      if (profile.role === 'admin') {
+        router.replace(`/${locale}/admin`)
+      } else {
+        router.replace(`/${locale}/dashboard`)
+      }
+
+      return { error: null }
+    },
+    [supabase, locale, router]
+  )
+
+  const signUp = useCallback(
+    async (email: string, password: string, fullName: string) => {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName },
+        },
+      })
+
+      if (error) return { error: error.message }
+
+      const newUser = data.user
+
+      if (newUser) {
+        await supabase.from('profiles').insert({
+          id: newUser.id,
+          email: newUser.email,
+          full_name: fullName,
+          role: 'member',
+        })
+      }
+
+      return { error: null }
+    },
+    [supabase]
+  )
+
+  const signOut = useCallback(async () => {
     await supabase.auth.signOut()
-  }
+    router.refresh()
+    router.replace(`/${locale}`)
+  }, [supabase, locale, router])
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      profile,
-      session,
-      loading,
-      signOut,
-      isAdmin: profile?.role === 'admin',
-      isMember: profile?.role === 'member' || profile?.role === 'admin',
-    }}>
+    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   )
 }
 
-export const useAuth = () => useContext(AuthContext)
+export function useAuth() {
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
+  return ctx
+}
