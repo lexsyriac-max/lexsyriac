@@ -10,6 +10,7 @@ interface Props {
 const NAV_ITEMS = [
   { key: 'dashboard', label: 'Dashboard', icon: '📊', path: '' },
   { key: 'words', label: 'Kelimeler', icon: '📖', path: '/words' },
+  { key: 'practice', label: 'Pratik Gruplar', icon: '🧩', path: '/practice' },
   { key: 'grammar', label: 'Gramer', icon: '📝', path: '/grammar' },
   { key: 'pending', label: 'Pending', icon: '⏳', path: '/pending' },
   { key: 'import', label: 'İçe Aktar', icon: '⬆', path: '/import' },

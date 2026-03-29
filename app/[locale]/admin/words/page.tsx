@@ -28,7 +28,7 @@ export default function AdminWordsPage() {
   const [totalCount, setTotal] = useState(0)
   const [todayCount, setToday] = useState(0)
 
-  // Modal artık sadece detay için kullanılıyor
+  // Modal sadece detay için
   const [activeWord, setActiveWord] = useState<Word | null>(null)
 
   const load = useCallback(async () => {
@@ -76,6 +76,7 @@ export default function AdminWordsPage() {
       syriac: payload.syriac,
       transliteration: payload.transliteration,
       word_type: payload.word_type,
+      practice_group: payload.practice_group ?? null,
       image_url: payload.image_url ?? null,
       audio_url: payload.audio_url ?? null,
     })

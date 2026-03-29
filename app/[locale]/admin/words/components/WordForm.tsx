@@ -37,6 +37,7 @@ export default function WordForm({
   const [syriac, setSyriac] = useState('')
   const [translit, setTranslit] = useState('')
   const [wordType, setWordType] = useState('isim')
+  const [practiceGroup, setPracticeGroup] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [audioUrl, setAudioUrl] = useState('')
   const [imageError, setImgErr] = useState(false)
@@ -81,6 +82,7 @@ export default function WordForm({
     setSyriac('')
     setTranslit('')
     setWordType('isim')
+    setPracticeGroup('')
     setImageUrl('')
     setAudioUrl('')
     setImgErr(false)
@@ -106,6 +108,7 @@ export default function WordForm({
     setSyriac(editingWord.syriac || '')
     setTranslit(editingWord.transliteration || '')
     setWordType(editingWord.word_type || 'isim')
+    setPracticeGroup(editingWord.practice_group || '')
     setImageUrl(editingWord.image_url || '')
     setAudioUrl(editingWord.audio_url || '')
     setImgErr(false)
@@ -264,6 +267,7 @@ export default function WordForm({
       syriac,
       transliteration: translit,
       word_type: wordType,
+      practice_group: practiceGroup || null,
       image_url: imageUrl || null,
       audio_url: audioUrl || null,
     }
@@ -524,7 +528,7 @@ export default function WordForm({
           className="mobile-stack"
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr 200px',
+            gridTemplateColumns: '1fr 1fr 1fr 200px',
             gap: '1rem',
             alignItems: 'start',
           }}
@@ -541,6 +545,24 @@ export default function WordForm({
           </div>
 
           <div>
+            <label style={LS}>Pratik Grup</label>
+            <select
+              value={practiceGroup}
+              onChange={(e) => setPracticeGroup(e.target.value)}
+              className="input"
+            >
+              <option value="">Yok</option>
+              <option value="pronouns">Zamirler</option>
+              <option value="question">Soru Kelimeleri</option>
+              <option value="conjunctions">Bağlaçlar</option>
+              <option value="prepositions">İlgeçler</option>
+              <option value="numbers">Sayılar</option>
+              <option value="weekdays">Haftanın Günleri</option>
+              <option value="months">Aylar</option>
+            </select>
+            <p style={HS}>Bu kelime hızlı pratik sayfasında ilgili başlık altında görünür.</p>
+          </div>
+                    <div>
             <label style={LS}>Görsel</label>
             <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.4rem' }}>
               <input
@@ -676,7 +698,10 @@ export default function WordForm({
           />
         </div>
 
-        <div className="btn-group-mobile" style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.25rem', flexWrap: 'wrap' }}>
+        <div
+          className="btn-group-mobile"
+          style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.25rem', flexWrap: 'wrap' }}
+        >
           <button type="submit" className="btn btn-primary" disabled={saving}>
             {saving
               ? 'Kaydediliyor...'
@@ -695,6 +720,7 @@ export default function WordForm({
                 setSyriac(editingWord.syriac || '')
                 setTranslit(editingWord.transliteration || '')
                 setWordType(editingWord.word_type || 'isim')
+                setPracticeGroup(editingWord.practice_group || '')
                 setImageUrl(editingWord.image_url || '')
                 setAudioUrl(editingWord.audio_url || '')
                 setImgErr(false)

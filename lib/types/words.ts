@@ -1,3 +1,6 @@
+// lib/types/words.ts
+// Tüm kelime yönetimi tipleri burada — tek kaynak
+
 export interface Word {
   id: string
   turkish: string
@@ -5,6 +8,7 @@ export interface Word {
   syriac: string
   transliteration: string
   word_type: string
+  practice_group?: string | null
   image_url: string | null
   audio_url: string | null
   created_at: string
@@ -26,15 +30,15 @@ export const TYPE_OPTIONS = [
   { value: 'diğer', label: 'Diğer (Other)' },
 ] as const
 
-export const VALID_TYPES = TYPE_OPTIONS.map(t => t.value)
+export const VALID_TYPES = TYPE_OPTIONS.map((t) => t.value)
 
 export const EKSIK_OPTIONS = [
-  { value: 'eksik_sy', label: 'Süryanice eksik' },
-  { value: 'eksik_tr', label: 'Türkçe eksik' },
-  { value: 'eksik_en', label: 'İngilizce eksik' },
-  { value: 'eksik_img', label: 'Görsel eksik' },
-  { value: 'eksik_audio', label: 'Ses eksik' },
-  { value: 'eksik_trans', label: 'Transliterasyon eksik' },
+  { value: 'eksik_sy', label: '⚠ Süryanice eksik' },
+  { value: 'eksik_tr', label: '⚠ Türkçe eksik' },
+  { value: 'eksik_en', label: '⚠ İngilizce eksik' },
+  { value: 'eksik_img', label: '⚠ Görsel eksik' },
+  { value: 'eksik_audio', label: '⚠ Ses eksik' },
+  { value: 'eksik_trans', label: '⚠ Transliterasyon eksik' },
 ] as const
 
 export const SPECIAL_CHARS = [

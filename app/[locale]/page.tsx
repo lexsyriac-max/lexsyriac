@@ -18,6 +18,15 @@ type Word = {
   audio_url?: string | null
 }
 
+type HomeCategory = {
+  id: string
+  slug: string
+  label: string
+  description: string | null
+  show_on_home: boolean | null
+  home_order: number | null
+}
+
 export default function HomePage() {
   const t = useTranslations()
   const locale = useLocale()
@@ -26,10 +35,13 @@ export default function HomePage() {
 
   const [search, setSearch] = useState('')
   const [words, setWords] = useState<Word[]>([])
+  const [homeCategories, setHomeCategories] = useState<HomeCategory[]>([])
   const [loadingWords, setLoadingWords] = useState(true)
+  const [loadingCategories, setLoadingCategories] = useState(true)
 
   useEffect(() => {
     loadWords()
+    loadHomeCategories()
   }, [])
 
   async function loadWords() {
@@ -44,11 +56,31 @@ export default function HomePage() {
     setLoadingWords(false)
   }
 
+  async function loadHomeCategories() {
+    setLoadingCategories(true)
+
+    const { data } = await supabase
+      .from('word_categories')
+      .select('id, slug, label, description, show_on_home, home_order')
+      .eq('show_on_home', true)
+      .order('home_order', { ascending: true })
+
+    setHomeCategories(data || [])
+    setLoadingCategories(false)
+  }
+
   const hourlyWord = useMemo(() => {
     if (!words.length) return null
     const hour = new Date().getHours()
     const index = hour % words.length
     return words[index]
+  }, [words])
+
+  const randomTags = useMemo(() => {
+    if (!words.length) return []
+
+    const shuffled = [...words].sort(() => 0.5 - Math.random())
+    return shuffled.slice(0, 5)
   }, [words])
 
   const stats = [
@@ -69,6 +101,7 @@ export default function HomePage() {
   const quickLinks = [
     { href: '/dictionary', label: t('nav.dictionary'), desc: t('cards.dictionary'), icon: '🔍', color: 'teal' },
     { href: '/learn', label: t('nav.learn'), desc: t('cards.learn'), icon: '🎴', color: 'amber' },
+    { href: '/practice', label: 'Pratik', desc: 'Kategorilere göre hızlı öğrenme alanı', icon: '🧩', color: 'green' },
     { href: '/sentences', label: t('nav.sentences'), desc: t('cards.sentences'), icon: '✍️', color: 'green' },
     { href: '/rules', label: t('nav.rules'), desc: t('cards.rules'), icon: '📖', color: 'teal' },
     { href: '/resources', label: t('nav.sources'), desc: t('cards.sources'), icon: '🗃️', color: 'amber' },
@@ -197,11 +230,11 @@ export default function HomePage() {
                 justifyContent: 'center',
               }}
             >
-              {['su', 'ekmek', 'aile', 'renkler', 'sayılar'].map((tag) => (
+              {randomTags.map((w) => (
                 <button
-                  key={tag}
+                  key={w.id}
                   type="button"
-                  onClick={() => goToTaggedSearch(tag)}
+                  onClick={() => goToTaggedSearch(w.turkish || w.english || '')}
                   style={{
                     padding: '0.25rem 0.75rem',
                     background: 'rgba(255,255,255,0.1)',
@@ -212,7 +245,7 @@ export default function HomePage() {
                     cursor: 'pointer',
                   }}
                 >
-                  {tag}
+                  {w.turkish || w.english}
                 </button>
               ))}
             </div>
@@ -262,9 +295,97 @@ export default function HomePage() {
           style={{
             display: 'grid',
             gridTemplateColumns: 'minmax(0, 1fr)',
-            gap: '1.5rem',
+            gap: '1.75rem',
           }}
         >
+          <div>
+            <h2 style={{ marginBottom: '1.1rem', fontSize: '1.2rem' }}>
+              Öne Çıkan Kategoriler
+            </h2>
+
+            {loadingCategories ? (
+              <div style={{ color: 'var(--color-text-muted)' }}>Yükleniyor...</div>
+            ) : homeCategories.length === 0 ? (
+              <div style={{ color: 'var(--color-text-muted)' }}>
+                Ana sayfada gösterilecek kategori henüz seçilmedi.
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: '1rem',
+                }}
+              >
+                {homeCategories.map((category) => (
+                  <Link
+                    key={category.id}
+                    href={`/${locale}/practice/${category.slug}`}
+                    style={{ textDecoration: 'none' }}
+                  >
+                    <div
+                      className="card"
+                      style={{
+                        padding: '1.1rem',
+                        minHeight: 145,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontSize: '0.78rem',
+                            color: 'var(--color-text-subtle)',
+                            marginBottom: '0.35rem',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.06em',
+                          }}
+                        >
+                          Kategori
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: '1.06rem',
+                            fontWeight: 700,
+                            color: 'var(--color-text)',
+                            marginBottom: '0.45rem',
+                          }}
+                        >
+                          {category.label}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: '0.87rem',
+                            color: 'var(--color-text-muted)',
+                            lineHeight: 1.55,
+                          }}
+                        >
+                          {category.description || 'Bu kategoriye ait kelimeleri hızlıca çalış.'}
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: '1rem',
+                          fontSize: '0.84rem',
+                          color: 'var(--color-primary)',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Kategoriye git →
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div>
             <h2 style={{ marginBottom: '1.1rem', fontSize: '1.2rem' }}>
               {t('home.quickAccess')}
