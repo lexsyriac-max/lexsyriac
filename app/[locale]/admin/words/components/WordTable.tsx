@@ -17,6 +17,8 @@ interface Props {
   onDeleteAll: () => Promise<void>
   onFillSyriac?: () => Promise<void>
   filling?: boolean
+  onBulkDelete?: (ids: string[]) => Promise<void>
+  onBulkFill?: (ids: string[]) => Promise<void>
 }
 
 type WordForm = {
@@ -64,6 +66,9 @@ export default function WordTable({
   const [tab, setTab] = useState<(typeof FILTER_TABS)[number]>('Tümü')
   const [typeFilter, setTypeFilter] = useState('')
   const [eksikFilter, setEksik] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [bulkFilling, setBulkFilling] = useState(false)
   const [playingId, setPlayingId] = useState<string | null>(null)
   const [formsMap, setFormsMap] = useState<Record<string, WordForm[]>>({})
   const [expandedWordId, setExpandedWordId] = useState<string | null>(null)
@@ -102,7 +107,7 @@ export default function WordTable({
   }, [words])
 
   const filtered = useMemo(() => {
-    return words.filter((word) => {
+    const list = words.filter((word) => {
       const w = word as WordMeta
       const q = search.toLowerCase()
 
@@ -144,7 +149,12 @@ export default function WordTable({
 
       return matchSearch && matchTab
     })
-  }, [words, search, tab, typeFilter, eksikFilter])
+    return [...list].sort((a, b) => {
+      const ta = (a.turkish || '').toLowerCase()
+      const tb = (b.turkish || '').toLowerCase()
+      return sortDir === 'asc' ? ta.localeCompare(tb, 'tr') : tb.localeCompare(ta, 'tr')
+    })
+  }, [words, search, tab, typeFilter, eksikFilter, sortDir])
 
   function exportCSV() {
     const headers = [
@@ -542,6 +552,34 @@ export default function WordTable({
             background: '#FAFAF8',
           }}
         >
+          {/* TOPLU İŞLEM BAR */}
+          {selectedIds.size > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--color-primary)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.75rem' }}>
+              <span style={{ fontSize: '0.8rem', color: 'white', fontWeight: 700 }}>
+                {selectedIds.size} seçili
+              </span>
+              <button
+                onClick={async () => {
+                  if (!confirm(`${selectedIds.size} kelime silinsin mi?`)) return
+                  for (const id of Array.from(selectedIds)) {
+                    const word = words.find(w => w.id === id)
+                    if (word) await onDelete(id, word.turkish || '')
+                  }
+                  setSelectedIds(new Set())
+                }}
+                style={{ padding: '0.25rem 0.6rem', borderRadius: 4, border: 'none', cursor: 'pointer', background: 'rgba(255,255,255,0.2)', color: 'white', fontSize: '0.78rem', fontWeight: 600 }}
+              >
+                🗑 Seçilenleri Sil
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                style={{ padding: '0.25rem 0.6rem', borderRadius: 4, border: 'none', cursor: 'pointer', background: 'rgba(255,255,255,0.15)', color: 'white', fontSize: '0.78rem' }}
+              >
+                ✕ Temizle
+              </button>
+            </div>
+          )}
+
           <span
             style={{
               fontSize: '0.75rem',
@@ -593,29 +631,29 @@ export default function WordTable({
                     background: '#FAFAF8',
                   }}
                 >
+                  <th style={{ padding: '0.625rem 0.75rem', width: 36 }}>
+                      <input type="checkbox"
+                        checked={filtered.length > 0 && filtered.every(w => selectedIds.has(w.id))}
+                        onChange={e => {
+                          if (e.target.checked) setSelectedIds(new Set(filtered.map(w => w.id)))
+                          else setSelectedIds(new Set())
+                        }}
+                      />
+                    </th>
                   {[
                     '#',
                     'Görsel',
-                    'Türkçe',
-                    'Süryanice',
-                    'İngilizce',
-                    'Tür',
-                    'Ses',
-                    'İşlemler',
                   ].map((h) => (
-                    <th
-                      key={h}
-                      style={{
-                        padding: '0.625rem 0.75rem',
-                        textAlign: 'left',
-                        fontWeight: 600,
-                        fontSize: '0.72rem',
-                        letterSpacing: '0.05em',
-                        color: 'var(--color-text-muted)',
-                        textTransform: 'uppercase',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
+                    <th key={h} style={{ padding: '0.625rem 0.75rem', textAlign: 'left', fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.05em', color: 'var(--color-text-muted)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                      {h}
+                    </th>
+                  ))}
+                  <th style={{ padding: '0.625rem 0.75rem', textAlign: 'left', fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.05em', color: 'var(--color-text-muted)', textTransform: 'uppercase', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                    onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}>
+                    Türkçe {sortDir === 'asc' ? '↑' : '↓'}
+                  </th>
+                  {['Süryanice', 'İngilizce', 'Tür', 'Ses', 'İşlemler'].map((h) => (
+                    <th key={h} style={{ padding: '0.625rem 0.75rem', textAlign: 'left', fontWeight: 600, fontSize: '0.72rem', letterSpacing: '0.05em', color: 'var(--color-text-muted)', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
                       {h}
                     </th>
                   ))}
@@ -632,7 +670,7 @@ export default function WordTable({
                   return (
                     <tr
                       key={w.id}
-                      style={{ borderBottom: '1px solid var(--color-border)' }}
+                      style={{ borderBottom: '1px solid var(--color-border)', background: selectedIds.has(w.id) ? 'var(--color-primary-light)' : undefined }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.background = '#FAFAF8'
                       }}
@@ -640,6 +678,18 @@ export default function WordTable({
                         e.currentTarget.style.background = 'transparent'
                       }}
                     >
+                      <td style={{ padding: '0.5rem 0.75rem', verticalAlign: 'top', width: 36 }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(w.id)}
+                          onChange={e => {
+                            const next = new Set(selectedIds)
+                            if (e.target.checked) next.add(w.id)
+                            else next.delete(w.id)
+                            setSelectedIds(next)
+                          }}
+                        />
+                      </td>
                       <td
                         style={{
                           padding: '0.5rem 0.75rem',
@@ -690,7 +740,7 @@ export default function WordTable({
                           padding: '0.5rem 0.75rem',
                           fontWeight: 500,
                           verticalAlign: 'top',
-                          minWidth: 340,
+                          minWidth: 180,
                         }}
                       >
                         <div style={{ fontWeight: 600, color: 'var(--color-text)' }}>
@@ -758,10 +808,6 @@ export default function WordTable({
                               {isExpanded ? '− Çekimleri Gizle' : `+ Çekimleri Göster (${forms.length})`}
                             </button>
                           )}
-
-                          <button onClick={() => openAddForm(w.id)} style={smallBtn}>
-                            + Çekim Ekle
-                          </button>
 
                           {(w.word_type === 'verb' || w.word_type === 'fiil') && w.syriac && (
                             <button
