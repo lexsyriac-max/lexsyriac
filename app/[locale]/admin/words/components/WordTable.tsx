@@ -763,6 +763,15 @@ export default function WordTable({
                             + Çekim Ekle
                           </button>
 
+                          {(w.word_type === 'verb' || w.word_type === 'fiil') && w.syriac && (
+                            <button
+                              onClick={() => router.push(`/${locale}/admin/grammar-engine?verb=${encodeURIComponent(w.syriac)}`)}
+                              style={{ ...smallBtn, background: 'var(--color-primary-light)', color: 'var(--color-primary)', border: '1px solid var(--color-primary)', fontWeight: 600 }}
+                            >
+                              ⚙️ Çekim Üret
+                            </button>
+                          )}
+
                           {!!w.syriac && (
                             <button
                               onClick={() => void copyText(w.syriac || '', 'Süryanice kelime')}

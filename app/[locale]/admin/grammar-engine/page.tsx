@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useLocale } from 'next-intl'
 import { createClient } from '@/lib/supabase'
@@ -42,9 +43,10 @@ const NUMBERS = ['singular', 'plural']
 const GENDERS = ['masculine', 'feminine', 'common']
 const KAYLOS = ["p'al", "pa'el", "aph'el", "ethpe'el", "ethpa'al", "ettaph'al"]
 
-export default function GrammarEnginePage() {
+function GrammarEngineContent() {
   const locale = useLocale()
   const supabase = createClient()
+  const searchParams = useSearchParams()
   const [tab, setTab] = useState<Tab>('conjugation')
 
   // ─── CONJUGATION STATE ───────────────────────────────────────
@@ -84,6 +86,18 @@ export default function GrammarEnginePage() {
   }, [supabase, filterCat, filterActive])
 
   useEffect(() => { if (tab === 'rules') loadRules() }, [tab, loadRules])
+
+  useEffect(() => {
+    // searchParams SSR'da boş gelebilir, timeout ile bekle
+    const timer = setTimeout(() => {
+      const verbParam = searchParams?.get('verb')
+      if (verbParam) {
+        setVerb(decodeURIComponent(verbParam))
+        setTab('conjugation')
+      }
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [searchParams])
 
   // ─── FETCH FROM SEDRA ────────────────────────────────────────
   async function fetchFromSedra() {
@@ -419,7 +433,7 @@ ${missing.slice(0, 20).map(m => `${m.tense} ${m.person} ${m.number} ${m.gender}`
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                   <thead>
                     <tr style={{ background: 'var(--color-bg-subtle)' }}>
-                      {['Kural Adı', 'Kategori', 'Zaman', 'Şahıs', 'Sayı', 'Giriş', 'Çıkış', 'Kaynak', 'Durum', 'İşlem'].map(h => (
+                      {['Fiil (TR)', 'Kategori', 'Zaman', 'Şahıs', 'Sayı', 'Cinsiyet', 'Giriş (Kök)', 'Çıkış (Form)', 'Kaynak', 'Durum', 'İşlem'].map(h => (
                         <th key={h} style={{ padding: '0.6rem 0.75rem', textAlign: 'left', fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
@@ -427,13 +441,16 @@ ${missing.slice(0, 20).map(m => `${m.tense} ${m.person} ${m.number} ${m.gender}`
                   <tbody>
                     {filteredRules.map(r => (
                       <tr key={r.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                        <td style={{ padding: '0.6rem 0.75rem', fontWeight: 600, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</td>
+                        <td style={{ padding: '0.6rem 0.75rem', fontWeight: 700, color: 'var(--color-text)' }}>
+                            {r.name?.split('—')[0]?.trim() || '—'}
+                          </td>
                         <td style={{ padding: '0.6rem 0.75rem' }}><span className="badge">{r.category}</span></td>
-                        <td style={{ padding: '0.6rem 0.75rem', color: 'var(--color-text-muted)' }}>{r.tense || '—'}</td>
-                        <td style={{ padding: '0.6rem 0.75rem', color: 'var(--color-text-muted)' }}>{r.person || '—'}</td>
-                        <td style={{ padding: '0.6rem 0.75rem', color: 'var(--color-text-muted)' }}>{r.number || '—'}</td>
-                        <td style={{ padding: '0.6rem 0.75rem', direction: 'rtl', fontFamily: 'serif', color: 'var(--color-primary)' }}>{r.example_input || '—'}</td>
-                        <td style={{ padding: '0.6rem 0.75rem', direction: 'rtl', fontFamily: 'serif', fontSize: '1.1rem', color: 'var(--color-primary)' }}>{r.example_output_syc || '—'}</td>
+                        <td style={{ padding: '0.6rem 0.75rem', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>{r.tense || '—'}</td>
+                        <td style={{ padding: '0.6rem 0.75rem', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>{r.person || '—'}</td>
+                        <td style={{ padding: '0.6rem 0.75rem', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>{r.number || '—'}</td>
+                        <td style={{ padding: '0.6rem 0.75rem', color: 'var(--color-text-muted)', fontSize: '0.8rem' }}>{r.gender || '—'}</td>
+                        <td style={{ padding: '0.6rem 0.75rem', direction: 'rtl', fontFamily: 'serif', fontSize: '1.2rem', color: 'var(--color-primary)', fontWeight: 600 }} title={r.example_input || ''}>{r.example_input || '—'}</td>
+                        <td style={{ padding: '0.6rem 0.75rem', direction: 'rtl', fontFamily: 'serif', fontSize: '1.3rem', color: 'var(--color-primary)', fontWeight: 700 }} title={r.example_output_syc || ''}>{r.example_output_syc || '—'}</td>
                         <td style={{ padding: '0.6rem 0.75rem' }}>
                           <span className="badge" style={{ background: r.source === 'sedra' ? '#EEF8F1' : r.source === 'claude' ? '#FDF3E3' : 'var(--color-bg-subtle)', color: r.source === 'sedra' ? '#216A3A' : r.source === 'claude' ? '#8B5000' : 'var(--color-text-muted)', fontSize: '0.7rem' }}>
                             {r.source}
@@ -514,5 +531,14 @@ ${missing.slice(0, 20).map(m => `${m.tense} ${m.person} ${m.number} ${m.gender}`
         )}
       </div>
     </main>
+  )
+}
+
+
+export default function GrammarEnginePage() {
+  return (
+    <Suspense fallback={<div style={{padding:'2rem'}}>Yükleniyor...</div>}>
+      <GrammarEngineContent />
+    </Suspense>
   )
 }

@@ -37,6 +37,8 @@ export default function SentenceBuilderAdvanced() {
   const [tense, setTense] = useState('past')
   const [gender, setGender] = useState('masculine')
   const [result, setResult] = useState<any>(null)
+  const [translations, setTranslations] = useState<{tr:string,en:string}|null>(null)
+  const [translating, setTranslating] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
@@ -70,6 +72,28 @@ export default function SentenceBuilderAdvanced() {
     const data = await res.json()
     setResult(data)
     setLoading(false)
+
+    // Otomatik TR + EN çeviri
+    if (data.sentence) {
+      setTranslating(true)
+      setTranslations(null)
+      try {
+        const tr = await fetch('/api/claude', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: `Translate this Classical Syriac sentence to Turkish and English.
+Return ONLY valid JSON: {"tr":"...","en":"..."}
+Syriac sentence: "${data.sentence}"`
+          })
+        })
+        const trData = await tr.json()
+        const raw = (trData.text || '').replace(/\`\`\`json|\`\`\`/g, '').trim()
+        const parsed = JSON.parse(raw)
+        setTranslations(parsed)
+      } catch { /* ignore */ }
+      finally { setTranslating(false) }
+    }
   }
 
   async function saveSentence() {
@@ -82,8 +106,8 @@ export default function SentenceBuilderAdvanced() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sentence_syc: result.sentence,
-        sentence_tr: '',
-        sentence_en: '',
+        sentence_tr: translations?.tr || '',
+        sentence_en: translations?.en || '',
         base_language: 'syc',
         source: 'sentence_builder',
         notes: `Özne: ${subject.syriac} | Fiil: ${verb?.turkish}(${verb?.syriac}) | Zaman: ${tense} | Kaynak: ${result.debug?.conjugation_source}`,
@@ -212,15 +236,55 @@ export default function SentenceBuilderAdvanced() {
                   </div>
 
                   {/* Debug */}
+                  {/* TR + EN Çeviri */}
+                  {translating && (
+                    <div style={{ padding: '0.75rem', background: 'var(--color-accent-light)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--color-accent)', marginBottom: '0.75rem' }}>
+                      ⏳ Türkçe ve İngilizce çevriliyor...
+                    </div>
+                  )}
+                  {translations && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                      <div style={{ padding: '0.75rem', background: 'var(--color-bg-subtle)', borderRadius: 'var(--radius-sm)' }}>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4, fontWeight: 700 }}>Türkçe</div>
+                        <div style={{ fontSize: '0.95rem', color: 'var(--color-text)', fontWeight: 600 }}>{translations.tr}</div>
+                      </div>
+                      <div style={{ padding: '0.75rem', background: 'var(--color-bg-subtle)', borderRadius: 'var(--radius-sm)' }}>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4, fontWeight: 700 }}>İngilizce</div>
+                        <div style={{ fontSize: '0.95rem', color: 'var(--color-text)', fontWeight: 600 }}>{translations.en}</div>
+                      </div>
+                    </div>
+                  )}
                   <div style={{ padding: '0.75rem', background: 'var(--color-bg-muted)', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
                     <strong>Kaynak:</strong> {result.debug?.conjugation_source}<br/>
                     <strong>Zaman:</strong> {result.debug?.meta?.tense} · <strong>Şahıs:</strong> {result.debug?.meta?.person} · <strong>Sayı:</strong> {result.debug?.meta?.number}
                   </div>
                 </div>
 
+                {translating && (
+                  <div style={{ padding: '0.75rem', background: 'var(--color-accent-light)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--color-accent)', marginBottom: '0.75rem', textAlign: 'center' }}>
+                    ⏳ Türkçe ve İngilizce çevriliyor...
+                  </div>
+                )}
+                {translations && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                    <div style={{ padding: '0.75rem', background: 'var(--color-bg-subtle)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 4, fontWeight: 700 }}>Türkçe</div>
+                      <div style={{ fontSize: '0.95rem', color: 'var(--color-text)', fontWeight: 600 }}>{translations.tr}</div>
+                    </div>
+                    <div style={{ padding: '0.75rem', background: 'var(--color-bg-subtle)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 4, fontWeight: 700 }}>İngilizce</div>
+                      <div style={{ fontSize: '0.95rem', color: 'var(--color-text)', fontWeight: 600 }}>{translations.en}</div>
+                    </div>
+                  </div>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                 <button className="btn btn-accent" onClick={saveSentence} disabled={saving} style={{ width: '100%' }}>
                   {saving ? '⏳ Kaydediliyor...' : '💾 Cümleyi Havuza Kaydet'}
                 </button>
+                <Link href={`/${locale}/admin/sentence-manage`} className="btn btn-secondary" style={{ width: '100%', textAlign: 'center' as const }}>
+                  📋 Cümle Yönetimine Git
+                </Link>
+                </div>
               </>
             ) : (
               <div className="card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
