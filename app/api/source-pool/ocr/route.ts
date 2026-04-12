@@ -2,27 +2,6 @@ export const maxDuration = 60
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase'
-import Tesseract from 'tesseract.js'
-
-const CHUNK_SIZE = 500 // karakter başına chunk
-
-function splitIntoChunks(text: string, size: number): string[] {
-  const chunks: string[] = []
-  const sentences = text.split(/(?<=[.!?])\s+/)
-  let current = ''
-
-  for (const sentence of sentences) {
-    if ((current + sentence).length > size && current.length > 0) {
-      chunks.push(current.trim())
-      current = sentence
-    } else {
-      current += (current ? ' ' : '') + sentence
-    }
-  }
-
-  if (current.trim()) chunks.push(current.trim())
-  return chunks.filter((c) => c.length > 10)
-}
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -57,74 +36,114 @@ export async function POST(req: NextRequest) {
       .download(doc.storage_path)
 
     if (storageError || !fileData) {
-      await supabase
-        .from('source_documents')
-        .update({ status: 'error' })
-        .eq('id', document_id)
+      await supabase.from('source_documents').update({ status: 'error' }).eq('id', document_id)
       return NextResponse.json({ success: false, error: 'Dosya indirilemedi' })
     }
 
-    // Buffer'a çevir
+    // Base64'e çevir
     const arrayBuffer = await fileData.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    const base64 = Buffer.from(arrayBuffer).toString('base64')
 
-    // OCR — Tesseract.js
-    let extractedText = ''
+    // Dosya türüne göre media type
+    const mediaType = doc.file_type.toLowerCase() === 'png'
+      ? 'image/png'
+      : doc.file_type.toLowerCase() === 'pdf'
+      ? 'application/pdf'
+      : 'image/jpeg'
+
+    // Claude Vision API — hem oku hem çevir
+    const claudeRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY!,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-5',
+        max_tokens: 4096,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: mediaType,
+                data: base64,
+              },
+            },
+            {
+              type: 'text',
+              text: `Bu görseldeki Süryanice metni oku ve aşağıdaki formatta JSON olarak döndür:
+{
+  "syriac": "Görseldeki orijinal Süryanice metin",
+  "turkish": "Metnin Türkçe tercümesi"
+}
+
+Sadece JSON döndür, başka açıklama ekleme.`,
+            },
+          ],
+        }],
+      }),
+    })
+
+    const claudeData = await claudeRes.json()
+
+    if (!claudeRes.ok) {
+      await supabase.from('source_documents').update({ status: 'error' }).eq('id', document_id)
+      return NextResponse.json({ success: false, error: claudeData.error?.message || 'Claude API hatası' })
+    }
+
+    const responseText = claudeData.content?.[0]?.text || ''
+
+    // JSON parse
+    let syriacText = ''
+    let turkishText = ''
+
     try {
-      const { data } = await Tesseract.recognize(buffer, 'tur+eng+syr', {
-        logger: () => {}, // sessiz
-      })
-      extractedText = data.text || ''
+      const clean = responseText.replace(/```json|```/g, '').trim()
+      const parsed = JSON.parse(clean)
+      syriacText = parsed.syriac || ''
+      turkishText = parsed.turkish || ''
     } catch {
-      // OCR başarısız olursa boş metin ile devam et
-      extractedText = ''
+      // JSON parse başarısız → tüm metni Süryanice olarak kaydet
+      syriacText = responseText
+      turkishText = ''
     }
 
-    if (!extractedText.trim()) {
-      await supabase
-        .from('source_documents')
-        .update({ status: 'error' })
-        .eq('id', document_id)
-      return NextResponse.json({ success: false, error: 'Metin çıkarılamadı' })
+    if (!syriacText.trim()) {
+      await supabase.from('source_documents').update({ status: 'error' }).eq('id', document_id)
+      return NextResponse.json({ success: false, error: 'Metin okunamadı' })
     }
 
-    // Önce eski chunk'ları temizle
-    await supabase
-      .from('source_text_chunks')
-      .delete()
-      .eq('document_id', document_id)
+    // Eski chunk'ları temizle
+    await supabase.from('source_text_chunks').delete().eq('document_id', document_id)
 
-    // Chunk'lara böl ve kaydet
-    const chunks = splitIntoChunks(extractedText, CHUNK_SIZE)
-    const chunkRows = chunks.map((content, index) => ({
-      document_id,
-      page_number: 1,
-      chunk_index: index,
-      content,
-    }))
-
+    // Tek chunk olarak kaydet (tam metin)
     const { error: insertError } = await supabase
       .from('source_text_chunks')
-      .insert(chunkRows)
+      .insert({
+        document_id,
+        page_number: 1,
+        chunk_index: 0,
+        content: syriacText,
+        translation_tr: turkishText || null,
+      })
 
     if (insertError) {
-      await supabase
-        .from('source_documents')
-        .update({ status: 'error' })
-        .eq('id', document_id)
+      await supabase.from('source_documents').update({ status: 'error' }).eq('id', document_id)
       return NextResponse.json({ success: false, error: insertError.message })
     }
 
     // Status: done
-    await supabase
-      .from('source_documents')
-      .update({ status: 'done' })
-      .eq('id', document_id)
+    await supabase.from('source_documents').update({ status: 'done' }).eq('id', document_id)
 
     return NextResponse.json({
       success: true,
-      chunks: chunks.length,
-      chars: extractedText.length,
+      chunks: 1,
+      chars: syriacText.length,
+      hasTranslation: !!turkishText,
     })
   } catch (err) {
     return NextResponse.json({
