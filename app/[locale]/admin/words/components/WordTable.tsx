@@ -15,6 +15,8 @@ interface Props {
   onDetail: (word: Word) => void
   onDelete: (id: string, name: string) => Promise<void>
   onDeleteAll: () => Promise<void>
+  onFillSyriac?: () => Promise<void>
+  filling?: boolean
 }
 
 type WordForm = {
@@ -53,6 +55,8 @@ export default function WordTable({
   onDetail,
   onDelete,
   onDeleteAll,
+  onFillSyriac,
+  filling = false,
 }: Props) {
   const supabase = createClient()
 
@@ -403,7 +407,25 @@ export default function WordTable({
           📄 PDF İndir
         </button>
 
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {onFillSyriac && (
+            <button
+              onClick={onFillSyriac}
+              disabled={filling}
+              style={{
+                padding: '0.4rem 0.9rem',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--color-primary)',
+                background: filling ? 'var(--color-bg-subtle)' : 'var(--color-primary-light)',
+                color: 'var(--color-primary)',
+                fontWeight: 600,
+                fontSize: '0.8rem',
+                cursor: filling ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {filling ? '⏳ Tamamlanıyor...' : '🤖 AI ile Tamamla'}
+            </button>
+          )}
           <DeleteAllButton onDelete={onDeleteAll} />
         </div>
       </div>

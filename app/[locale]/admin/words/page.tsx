@@ -42,6 +42,7 @@ export default function AdminWordsPage() {
   const [activeWord, setActiveWord] = useState<Word | null>(null)
 
   const [message, setMessage] = useState('')
+  const [filling, setFilling] = useState(false)
   const [error, setError] = useState('')
 
   const [totalCount, setTotalCount] = useState(0)
@@ -233,6 +234,23 @@ export default function AdminWordsPage() {
     setShowForm(false)
     setMessage('Tüm kelimeler silindi.')
     await load()
+  }
+
+  async function handleFillSyriac() {
+    if (!confirm('Süryanice boş olan kelimeler Claude AI ile tamamlansın mı?')) return
+    setFilling(true)
+    setMessage('')
+    setError('')
+    try {
+      const res = await fetch('/api/admin/fill-syriac', { method: 'POST' })
+      const data = await res.json()
+      setMessage(data.message || `${data.updated} kelime tamamlandı`)
+      await load()
+    } catch {
+      setError('AI tamamlama başarısız.')
+    } finally {
+      setFilling(false)
+    }
   }
 
   function openEdit(word: Word) {
@@ -477,6 +495,8 @@ export default function AdminWordsPage() {
             onDetail={openDetail}
             onDelete={handleDelete}
             onDeleteAll={handleDeleteAll}
+              onFillSyriac={handleFillSyriac}
+              filling={filling}
           />
         ) : (
           <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--color-text-muted)' }}>
