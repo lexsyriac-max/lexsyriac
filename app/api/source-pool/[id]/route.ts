@@ -3,15 +3,16 @@ import { createClient } from '@/lib/supabase'
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
+  const { id } = await params
 
   try {
     const { data: doc, error: docError } = await supabase
       .from('source_documents')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (docError) return NextResponse.json({ success: false, error: docError.message })
@@ -19,7 +20,7 @@ export async function GET(
     const { data: chunks, error: chunkError } = await supabase
       .from('source_text_chunks')
       .select('*')
-      .eq('document_id', params.id)
+      .eq('document_id', id)
       .order('page_number', { ascending: true })
       .order('chunk_index', { ascending: true })
 
@@ -36,15 +37,16 @@ export async function GET(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
+  const { id } = await params
 
   try {
     const { error } = await supabase
       .from('source_documents')
       .delete()
-      .eq('id', params.id)
+      .eq('id', id)
 
     if (error) return NextResponse.json({ success: false, error: error.message })
 
