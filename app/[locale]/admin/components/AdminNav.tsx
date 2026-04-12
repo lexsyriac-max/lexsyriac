@@ -25,6 +25,7 @@ const NAV_GROUPS = [
   { label: 'Sistem', items: [
     { path: '/admin/categories', icon: '🗂️', label: 'Kategoriler' },
     { path: '/admin/users', icon: '👥', label: 'Kullanıcılar' },
+    { path: '/admin/source-pool', icon: '📂', label: 'Kaynak Havuzu' },
   ]},
 ]
 
