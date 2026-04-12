@@ -16,6 +16,7 @@ export default function NavBar() {
   const supabase = createClient()
 
   const [menuOpen, setMenuOpen] = useState(false)
+  const [learnOpen, setLearnOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [role, setRole] = useState<string | null>(null)
 
@@ -53,11 +54,16 @@ export default function NavBar() {
   const navLinks = [
     { href: '/dictionary', label: t('dictionary') },
     { href: '/categories', label: 'Kategoriler' },
-    { href: '/learn', label: t('learn') },
     { href: '/sentences', label: t('sentences') },
     { href: '/rules', label: t('rules') },
     { href: '/resources', label: t('sources') },
     { href: '/stats', label: t('stats') },
+  ]
+
+  const learnLinks = [
+    { href: '/learn', label: 'Kelime Öğren' },
+    { href: '/learn-sentences', label: 'Cümle Öğren' },
+    { href: '/sentences', label: 'Cümle Kur' },
   ]
 
   const switchLocale = () => {
@@ -158,6 +164,7 @@ export default function NavBar() {
                 justifyContent: 'center',
                 minWidth: 0,
                 flexWrap: 'wrap',
+                alignItems: 'center',
               }}
             >
               {navLinks.map((link) => (
@@ -169,6 +176,64 @@ export default function NavBar() {
                   {link.label}
                 </Link>
               ))}
+
+              <div
+                style={{ position: 'relative' }}
+                onMouseEnter={() => setLearnOpen(true)}
+                onMouseLeave={() => setLearnOpen(false)}
+              >
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setLearnOpen((v) => !v)}
+                  onMouseEnter={() => setLearnOpen(true)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                  }}
+                >
+                  <span>Öğren</span>
+                  <span style={{ fontSize: '0.75rem' }}>{learnOpen ? '▲' : '▼'}</span>
+                </button>
+
+                {learnOpen && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      minWidth: 190,
+                      background: 'white',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 12,
+                      boxShadow: 'var(--shadow-md)',
+                      padding: '0.4rem',
+                      paddingTop: '0.55rem',
+                      zIndex: 120,
+                    }}
+                  >
+                    {learnLinks.map((link) => (
+                      <Link
+                        key={link.href}
+                        href={`/${locale}${link.href}`}
+                        onClick={() => setLearnOpen(false)}
+                        style={{
+                          display: 'block',
+                          textDecoration: 'none',
+                          color: 'var(--color-text)',
+                          padding: '0.65rem 0.8rem',
+                          borderRadius: 8,
+                          fontSize: '0.92rem',
+                          fontWeight: 500,
+                        }}
+                      >
+                        {link.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -282,6 +347,49 @@ export default function NavBar() {
                 {link.label}
               </Link>
             ))}
+
+            <div
+              style={{
+                border: '1px solid var(--color-border)',
+                borderRadius: 10,
+                padding: '0.4rem',
+                marginTop: '0.4rem',
+                marginBottom: '0.4rem',
+                background: 'var(--color-bg-card)',
+              }}
+            >
+              <div
+                style={{
+                  padding: '0.5rem 0.7rem',
+                  fontSize: '0.78rem',
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: 'var(--color-text-muted)',
+                  fontWeight: 700,
+                }}
+              >
+                Öğren
+              </div>
+
+              {learnLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={`/${locale}${link.href}`}
+                  onClick={() => setMenuOpen(false)}
+                  style={{
+                    display: 'block',
+                    padding: '0.75rem 0.9rem',
+                    borderRadius: 8,
+                    color: 'var(--color-text)',
+                    textDecoration: 'none',
+                    fontWeight: 500,
+                    fontSize: '0.9375rem',
+                  }}
+                >
+                  {link.label}
+                </Link>
+              ))}
+            </div>
 
             <div
               style={{

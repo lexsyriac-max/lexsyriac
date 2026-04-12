@@ -7,12 +7,19 @@ export interface Word {
   english: string
   syriac: string
   transliteration: string
+  root?: string | null
   word_type: string
   practice_group?: string | null
   image_url: string | null
   audio_url: string | null
   created_at: string
   created_by?: string | null
+
+  source?: 'manual' | 'database' | 'sedra' | 'ai' | string | null
+  is_verified?: boolean | null
+  sedra_verified?: boolean | null
+  notes?: string | null
+  category_id?: string | null
 }
 
 export const TYPE_OPTIONS = [
@@ -39,11 +46,12 @@ export const EKSIK_OPTIONS = [
   { value: 'eksik_img', label: '⚠ Görsel eksik' },
   { value: 'eksik_audio', label: '⚠ Ses eksik' },
   { value: 'eksik_trans', label: '⚠ Transliterasyon eksik' },
+  { value: 'eksik_root', label: '⚠ Kök (Root) eksik' },
 ] as const
 
 export const SPECIAL_CHARS = [
   { char: 'ʾ', label: 'Alef' },
-  { char: '˕', label: 'Ayn' },
+  { char: 'ʿ', label: 'Ayn' },
   { char: 'ḥ', label: 'Het' },
   { char: 'ṭ', label: 'Tet' },
   { char: 'ṣ', label: 'Tsade' },

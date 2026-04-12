@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     const res = await fetch(url)
     const data = await res.json()
     const translated = data?.responseData?.translatedText?.trim()
-    return NextResponse.json({ translated: translated || '' })
+    return NextResponse.json({ translation: translated || '' })
   } catch (err) {
     console.error('translate error:', err)
     return NextResponse.json({ error: 'Çeviri başarısız.' }, { status: 500 })

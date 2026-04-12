@@ -9,9 +9,20 @@ export interface DbResult<T = void> {
   error: string | null
 }
 
-// Supabase client — her fonksiyon kendi client'ını oluşturur (singleton)
 function db() {
   return createClient()
+}
+
+type UpdatedWordResult = {
+  id: string
+  turkish: string
+  root: string | null
+  practice_group: string | null
+  source: string | null
+  is_verified: boolean | null
+  sedra_verified: boolean | null
+  notes: string | null
+  category_id: string | null
 }
 
 // ─── Kelime okuma ─────────────────────────────────────────────────────────────
@@ -20,12 +31,30 @@ export async function getWords(): Promise<DbResult<Word[]>> {
   const { data, error } = await db()
     .from('words')
     .select(
-      'id,turkish,english,syriac,transliteration,word_type,practice_group,image_url,audio_url,created_at'
+      `
+      id,
+      turkish,
+      english,
+      syriac,
+      transliteration,
+      root,
+      word_type,
+      practice_group,
+      image_url,
+      audio_url,
+      created_at,
+      created_by,
+      source,
+      is_verified,
+      sedra_verified,
+      notes,
+      category_id
+      `
     )
     .order('created_at', { ascending: false })
 
   if (error) return { data: null, error: error.message }
-  return { data: data as Word[], error: null }
+  return { data: (data || []) as Word[], error: null }
 }
 
 // ─── Kelime ekleme ────────────────────────────────────────────────────────────
@@ -35,29 +64,35 @@ export interface AddWordPayload {
   english: string
   syriac: string
   transliteration: string
+  root?: string | null
   word_type: string
   practice_group?: string | null
   image_url?: string | null
   audio_url?: string | null
+  source?: string | null
+  is_verified?: boolean | null
+  sedra_verified?: boolean | null
+  notes?: string | null
+  category_id?: string | null
 }
 
 export async function addWord(payload: AddWordPayload): Promise<DbResult> {
   const supabase = db()
 
-  // Duplicate kontrol
   const { data: existing } = await supabase
     .from('words')
     .select('id')
     .eq('turkish', payload.turkish.trim())
     .maybeSingle()
 
-  if (existing) return { data: null, error: 'Bu Türkçe kelime zaten kayıtlı.' }
+  if (existing) {
+    return { data: null, error: 'Bu Türkçe kelime zaten kayıtlı.' }
+  }
 
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Geçersiz kelime türünü 'diğer' yap
   const wordType = VALID_TYPES.includes(payload.word_type as (typeof VALID_TYPES)[number])
     ? payload.word_type
     : 'diğer'
@@ -67,10 +102,16 @@ export async function addWord(payload: AddWordPayload): Promise<DbResult> {
     english: payload.english.trim(),
     syriac: payload.syriac.trim(),
     transliteration: payload.transliteration.trim(),
+    root: payload.root?.trim() ?? null,
     word_type: wordType,
-    practice_group: payload.practice_group || null,
-    image_url: payload.image_url || null,
-    audio_url: payload.audio_url || null,
+    practice_group: payload.practice_group ?? null,
+    image_url: payload.image_url ?? null,
+    audio_url: payload.audio_url ?? null,
+    source: payload.source ?? 'manual',
+    is_verified: payload.is_verified ?? false,
+    sedra_verified: payload.sedra_verified ?? false,
+    notes: payload.notes?.trim() ?? null,
+    category_id: payload.category_id?.trim() || null,
     created_by: user?.id ?? null,
   })
 
@@ -86,13 +127,21 @@ export interface UpdateWordPayload {
   english: string
   syriac: string
   transliteration: string
+  root?: string | null
   word_type: string
   practice_group?: string | null
   image_url?: string | null
   audio_url?: string | null
+  source?: string | null
+  is_verified?: boolean | null
+  sedra_verified?: boolean | null
+  notes?: string | null
+  category_id?: string | null
 }
 
-export async function updateWord(payload: UpdateWordPayload): Promise<DbResult> {
+export async function updateWord(
+  payload: UpdateWordPayload
+): Promise<DbResult<UpdatedWordResult>> {
   const wordType = VALID_TYPES.includes(payload.word_type as (typeof VALID_TYPES)[number])
     ? payload.word_type
     : 'diğer'
@@ -100,30 +149,49 @@ export async function updateWord(payload: UpdateWordPayload): Promise<DbResult> 
   const { data, error } = await db()
     .from('words')
     .update({
-      turkish: payload.turkish,
-      english: payload.english,
-      syriac: payload.syriac,
-      transliteration: payload.transliteration,
+      turkish: payload.turkish.trim(),
+      english: payload.english.trim(),
+      syriac: payload.syriac.trim(),
+      transliteration: payload.transliteration.trim(),
+      root: payload.root?.trim() ?? null,
       word_type: wordType,
       practice_group: payload.practice_group ?? null,
       image_url: payload.image_url ?? null,
       audio_url: payload.audio_url ?? null,
+      source: payload.source ?? 'manual',
+      is_verified: payload.is_verified ?? false,
+      sedra_verified: payload.sedra_verified ?? false,
+      notes: payload.notes?.trim() ?? null,
+      category_id: payload.category_id?.trim() || null,
     })
     .eq('id', payload.id)
-    .select('id, turkish, practice_group')
+    .select(
+      `
+      id,
+      turkish,
+      root,
+      practice_group,
+      source,
+      is_verified,
+      sedra_verified,
+      notes,
+      category_id
+      `
+    )
+    .single()
 
   if (error) {
     return { data: null, error: error.message }
   }
 
-  if (!data || data.length === 0) {
+  if (!data) {
     return {
       data: null,
       error: 'Veritabanı güncelleme yapmadı. Muhtemelen yetki/RLS veya eşleşen kayıt sorunu var.',
     }
   }
 
-  return { data: data[0], error: null }
+  return { data: data as UpdatedWordResult, error: null }
 }
 
 // ─── Kelime silme ─────────────────────────────────────────────────────────────
@@ -141,6 +209,7 @@ export async function deleteAllWords(): Promise<DbResult> {
     .from('words')
     .delete()
     .neq('id', '00000000-0000-0000-0000-000000000000')
+
   if (error) return { data: null, error: error.message }
   return { data: null, error: null }
 }
@@ -155,6 +224,7 @@ export interface ImportResult {
 
 export async function importWords(rows: AddWordPayload[]): Promise<ImportResult> {
   const supabase = db()
+
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -189,10 +259,16 @@ export async function importWords(rows: AddWordPayload[]): Promise<ImportResult>
       english: row.english.trim(),
       syriac: row.syriac.trim(),
       transliteration: row.transliteration.trim(),
+      root: row.root?.trim() ?? null,
       word_type: wordType,
-      practice_group: row.practice_group || null,
-      image_url: row.image_url || null,
-      audio_url: row.audio_url || null,
+      practice_group: row.practice_group ?? null,
+      image_url: row.image_url ?? null,
+      audio_url: row.audio_url ?? null,
+      source: row.source ?? 'manual',
+      is_verified: row.is_verified ?? false,
+      sedra_verified: row.sedra_verified ?? false,
+      notes: row.notes?.trim() ?? null,
+      category_id: row.category_id?.trim() || null,
       created_by: user?.id ?? null,
     })
 
@@ -224,7 +300,9 @@ export async function uploadToStorage(
     .from('word-media')
     .upload(path, file, { contentType })
 
-  if (error || !data) return { data: null, error: error?.message || 'Yükleme hatası' }
+  if (error || !data) {
+    return { data: null, error: error?.message || 'Yükleme hatası' }
+  }
 
   const { data: urlData } = supabase.storage.from('word-media').getPublicUrl(data.path)
   return { data: urlData.publicUrl, error: null }

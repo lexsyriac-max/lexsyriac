@@ -141,6 +141,12 @@ export default async function AdminPage() {
       desc: 'Sentence Builder ve geri bildirim alanı',
       color: '#14B8A6',
     },
+    {
+      href: `/${locale}/admin/sentence-manage`,
+      label: '📋 Cümle Yönetimi',
+      desc: 'Cümleleri listele, düzenle ve çevir',
+      color: '#EC4899',
+    },
   ]
 
   const serviceStatus = [
@@ -212,6 +218,12 @@ export default async function AdminPage() {
       icon: '✍️',
       title: 'Sentence Builder',
       desc: 'Cümle üret, geri bildirim ve kural önerisi kaydet',
+    },
+    {
+      href: `/${locale}/admin/sentence-manage`,
+      icon: '📋',
+      title: 'Cümle Yönetimi',
+      desc: 'Cümleleri listele, düzenle ve çevir',
     },
     {
       href: `/${locale}/admin/users`,
@@ -299,6 +311,7 @@ export default async function AdminPage() {
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
             gap: '1.5rem',
+            alignItems: 'start',
           }}
         >
           <div className="card" style={{ padding: '1.5rem' }}>
@@ -386,8 +399,8 @@ export default async function AdminPage() {
                         s.status === 'ok'
                           ? '#10B981'
                           : s.status === 'warn'
-                          ? '#F59E0B'
-                          : '#EF4444',
+                            ? '#F59E0B'
+                            : '#EF4444',
                       flexShrink: 0,
                       display: 'inline-block',
                     }}

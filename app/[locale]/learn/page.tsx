@@ -1,44 +1,129 @@
 'use client'
 
-import NavBar from '../NavBar'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useLocale } from 'next-intl'
-import { useAuth } from '../AuthContext'
+import NavBar from '../NavBar'
+import { createClient } from '@/lib/supabase'
 
-export default function SentencesPage() {
+type Category = {
+  id: string
+  name: string
+}
+
+type LearnMode = 'normal' | 'image_to_syriac' | 'image_to_english'
+type LearnLang = 'tr' | 'sy' | 'en'
+
+const QUESTION_COUNT_OPTIONS = [10, 20, 30, 50]
+const WORD_TYPE_OPTIONS = [
+  'isim',
+  'fiil',
+  'sıfat',
+  'zamir',
+  'zarf',
+  'edat',
+  'bağlaç',
+  'ünlem',
+]
+
+export default function LearnPage() {
   const locale = useLocale()
-  const { user } = useAuth()
+  const supabase = createClient()
 
-  const modules = [
-    {
-      title: 'Cümle Kurma',
-      desc: 'Kelime havuzundan seçerek temel cümleler oluştur.',
-      href: `/${locale}/dictionary`,
-      button: 'Sözlüğe Git',
-    },
-    {
-      title: 'Kuralları İncele',
-      desc: 'Cümle oluşturmadan önce ilgili dil kurallarını incele.',
-      href: `/${locale}/rules`,
-      button: 'Kuralları Aç',
-    },
-    {
-      title: 'Öğrenme Alanı',
-      desc: 'Kelime ve yapı odaklı öğrenme ekranlarına geç.',
-      href: `/${locale}/learn`,
-      button: 'Öğrenmeye Geç',
-    },
-  ]
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loadingCategories, setLoadingCategories] = useState(true)
+
+  const [mode, setMode] = useState<LearnMode>('normal')
+  const [questionLang, setQuestionLang] = useState<LearnLang>('tr')
+  const [answerLang, setAnswerLang] = useState<LearnLang>('sy')
+  const [selectedWordTypes, setSelectedWordTypes] = useState<string[]>([])
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
+  const [questionCount, setQuestionCount] = useState<number>(10)
+  const [examMode, setExamMode] = useState(false)
+
+  useEffect(() => {
+    loadCategories()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function loadCategories() {
+    setLoadingCategories(true)
+
+    // word_categories yerine ortak categories tablosundan type='word' olanları çekiyoruz
+    const { data } = await supabase
+      .from('categories')
+      .select('id, name')
+      .eq('type', 'word')
+      .order('name', { ascending: true })
+
+    setCategories(data || [])
+    setLoadingCategories(false)
+  }
+
+  function toggleCategory(categoryId: string) {
+    setSelectedCategoryIds((prev) =>
+      prev.includes(categoryId)
+        ? prev.filter((id) => id !== categoryId)
+        : [...prev, categoryId]
+    )
+  }
+
+  function toggleWordType(type: string) {
+    setSelectedWordTypes((prev) =>
+      prev.includes(type)
+        ? prev.filter((t) => t !== type)
+        : [...prev, type]
+    )
+  }
+
+  const startHref = useMemo(() => {
+    const params = new URLSearchParams()
+    params.set('mode', mode)
+    params.set('q', questionLang)
+    params.set('a', answerLang)
+    params.set('exam', examMode ? '1' : '0')
+    params.set('count', String(questionCount))
+
+    if (selectedWordTypes.length > 0) {
+      params.set('type', selectedWordTypes.join(','))
+    }
+
+    if (selectedCategoryIds.length > 0) {
+      params.set('categories', selectedCategoryIds.join(','))
+    }
+
+    return `/${locale}/learn/session?${params.toString()}`
+  }, [
+    locale,
+    mode,
+    questionLang,
+    answerLang,
+    examMode,
+    selectedWordTypes,
+    selectedCategoryIds,
+    questionCount,
+  ])
+
+  const modeLabel =
+    mode === 'normal'
+      ? 'Normal Mod'
+      : mode === 'image_to_syriac'
+      ? 'Görselden → Süryanice'
+      : 'Görselden → İngilizce'
+
+  const selectedCategoryLabels = selectedCategoryIds
+    .map((id) => categories.find((c) => c.id === id)?.name)
+    .filter(Boolean) as string[]
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)' }}>
       <NavBar />
 
       <main>
-        <div
+        <section
           style={{
             background: 'linear-gradient(135deg, var(--color-primary) 0%, #0F3D47 100%)',
-            padding: '2.75rem 0',
+            padding: '2.8rem 0',
           }}
         >
           <div className="container">
@@ -51,7 +136,7 @@ export default function SentencesPage() {
                 marginBottom: '0.45rem',
               }}
             >
-              Cümle Alanı
+              Öğrenme Sınıfı
             </p>
 
             <h1
@@ -63,7 +148,7 @@ export default function SentencesPage() {
                 marginBottom: '0.65rem',
               }}
             >
-              Cümle yapısını keşfet
+              Kelime öğrenme motoru
             </h1>
 
             <p
@@ -71,126 +156,282 @@ export default function SentencesPage() {
                 color: 'rgba(255,255,255,0.86)',
                 fontSize: '0.98rem',
                 lineHeight: 1.7,
-                maxWidth: 760,
+                maxWidth: 780,
               }}
             >
-              Bu alan, kelimeler ve kurallar arasındaki ilişkiyi görerek temel cümle
-              yapısını anlamana yardımcı olur. Daha gelişmiş cümle kurma ve soru modülleri
-              ileride burada yer alacak.
+              Mod, soru dili, cevap dili, kategori ve kelime türü seçerek kendi
+              çalışma oturumunu oluştur. Sorular seçtiğin havuzdan karışık gelir.
             </p>
           </div>
-        </div>
+        </section>
 
         <div className="container" style={{ padding: '2rem 1.5rem 3rem' }}>
           <div
             className="card"
             style={{
-              padding: '1.25rem',
+              padding: 0,
+              overflow: 'hidden',
               marginBottom: '1.25rem',
-              background: 'linear-gradient(135deg, var(--color-primary-light), white)',
-              borderColor: 'rgba(26, 95, 110, 0.15)',
             }}
           >
             <div
               style={{
-                fontSize: '1rem',
-                fontWeight: 700,
-                color: 'var(--color-text)',
-                marginBottom: '0.4rem',
+                padding: '0.95rem 1.2rem',
+                background: '#E7E3D8',
+                borderBottom: '1px solid var(--color-border)',
               }}
             >
-              Kullanım durumu
+              <div
+                style={{
+                  fontSize: '0.84rem',
+                  letterSpacing: '0.14em',
+                  textTransform: 'uppercase',
+                  color: 'var(--color-text)',
+                  fontWeight: 700,
+                }}
+              >
+                Kart Ayarları
+              </div>
             </div>
 
-            <div
-              style={{
-                fontSize: '0.94rem',
-                color: 'var(--color-text-muted)',
-                lineHeight: 1.7,
-              }}
-            >
-              {user
-                ? 'Giriş yapmış durumdasın. İleride kurduğun cümleler ve çözdüğün alıştırmalar hesabına kaydedilebilecek.'
-                : 'Ziyaretçi olarak cümle alanını görebilir ve kullanabilirsin. İleride kayıt ve ilerleme takibi yalnızca giriş yapan kullanıcılar için tutulacak.'}
-            </div>
-          </div>
+            <div style={{ padding: '1.2rem' }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+                  gap: '0.9rem',
+                  marginBottom: '1rem',
+                }}
+              >
+                <Field label="Mod">
+                  <select
+                    className="input"
+                    value={mode}
+                    onChange={(e) => setMode(e.target.value as LearnMode)}
+                  >
+                    <option value="normal">📖 Normal Mod</option>
+                    <option value="image_to_syriac">🖼️ Görselden → Süryanice</option>
+                    <option value="image_to_english">🖼️ Görselden → İngilizce</option>
+                  </select>
+                </Field>
 
-          <div
-            className="card"
-            style={{
-              padding: '1.25rem',
-              marginBottom: '1.25rem',
-              background: 'linear-gradient(135deg, var(--color-primary-light), white)',
-              borderColor: 'rgba(26, 95, 110, 0.15)',
-            }}
-          >
-            <div
-              style={{
-                fontSize: '1rem',
-                fontWeight: 700,
-                color: 'var(--color-text)',
-                marginBottom: '0.4rem',
-              }}
-            >
-              Bu sayfa ne için var?
-            </div>
+                <Field label="Soru Dili">
+                  <select
+                    className="input"
+                    value={questionLang}
+                    onChange={(e) => setQuestionLang(e.target.value as LearnLang)}
+                  >
+                    <option value="tr">Türkçe</option>
+                    <option value="sy">Süryanice</option>
+                    <option value="en">İngilizce</option>
+                  </select>
+                </Field>
 
-            <div
-              style={{
-                fontSize: '0.94rem',
-                color: 'var(--color-text-muted)',
-                lineHeight: 1.7,
-              }}
-            >
-              Kullanıcı tarafındaki cümle alanı; kelime, kural ve yapı mantığını
-              birlikte anlaman için hazırlanıyor. Şu an bu bölüm yönlendirme ve temel
-              hazırlık ekranı olarak çalışır.
-            </div>
-          </div>
+                <Field label="Cevap Dili">
+                  <select
+                    className="input"
+                    value={answerLang}
+                    onChange={(e) => setAnswerLang(e.target.value as LearnLang)}
+                  >
+                    <option value="sy">Süryanice</option>
+                    <option value="tr">Türkçe</option>
+                    <option value="en">İngilizce</option>
+                  </select>
+                </Field>
+              </div>
 
-          <div
-            className="responsive-grid-3"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-              gap: '1rem',
-            }}
-          >
-            {modules.map((module) => (
-              <div key={module.title} className="card" style={{ padding: '1.25rem' }}>
-                <h2
+              <div style={{ marginBottom: '1rem' }}>
+                <label
                   style={{
-                    fontSize: '1.1rem',
-                    marginBottom: '0.45rem',
+                    display: 'block',
+                    fontSize: '0.78rem',
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
                     color: 'var(--color-text)',
+                    fontWeight: 700,
+                    marginBottom: '0.5rem',
                   }}
                 >
-                  {module.title}
-                </h2>
+                  Kelime Türleri
+                </label>
 
-                <p
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
+                  {WORD_TYPE_OPTIONS.map((type) => {
+                    const isSelected = selectedWordTypes.includes(type)
+
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => toggleWordType(type)}
+                        className="btn btn-sm"
+                        style={{
+                          border: '1px solid var(--color-border)',
+                          background: isSelected ? '#8E6810' : 'white',
+                          color: isSelected ? 'white' : 'var(--color-text)',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {type}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div
                   style={{
-                    fontSize: '0.9rem',
+                    marginTop: '0.55rem',
+                    fontSize: '0.82rem',
                     color: 'var(--color-text-muted)',
-                    lineHeight: 1.6,
-                    marginBottom: '1rem',
                   }}
                 >
-                  {module.desc}
-                </p>
+                  Seçim yapılmazsa tüm türler gelir.
+                </div>
+              </div>
 
-                <Link href={module.href} className="btn btn-secondary">
-                  {module.button}
+              <div style={{ marginBottom: '1rem' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '0.78rem',
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: 'var(--color-text)',
+                    fontWeight: 700,
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  Kategoriler
+                </label>
+
+                {loadingCategories ? (
+                  <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                    Kategoriler yükleniyor...
+                  </div>
+                ) : categories.length === 0 ? (
+                  <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                    Kategori bulunamadı.
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '0.55rem',
+                      }}
+                    >
+                      {categories.map((category) => {
+                        const isSelected = selectedCategoryIds.includes(category.id)
+
+                        return (
+                          <button
+                            key={category.id}
+                            type="button"
+                            onClick={() => toggleCategory(category.id)}
+                            className="btn btn-sm"
+                            style={{
+                              border: '1px solid var(--color-border)',
+                              background: isSelected ? 'var(--color-primary)' : 'white',
+                              color: isSelected ? 'white' : 'var(--color-text)',
+                              fontWeight: 600,
+                            }}
+                          >
+                            {category.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: '0.55rem',
+                        fontSize: '0.82rem',
+                        color: 'var(--color-text-muted)',
+                      }}
+                    >
+                      Seçim yapılmazsa tüm kategorilerden karışık gelir.
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '0.78rem',
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: 'var(--color-text)',
+                    fontWeight: 700,
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  Soru Sayısı
+                </label>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.55rem' }}>
+                  {QUESTION_COUNT_OPTIONS.map((count) => {
+                    const isSelected = questionCount === count
+
+                    return (
+                      <button
+                        key={count}
+                        type="button"
+                        onClick={() => setQuestionCount(count)}
+                        className="btn btn-sm"
+                        style={{
+                          minWidth: 56,
+                          border: '1px solid var(--color-border)',
+                          background: isSelected ? '#8E6810' : 'white',
+                          color: isSelected ? 'white' : 'var(--color-text)',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {count}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '0.75rem',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setExamMode((v) => !v)}
+                  className="btn"
+                  style={{
+                    border: '1px solid #A67C18',
+                    background: examMode ? '#8E6810' : 'transparent',
+                    color: examMode ? 'white' : '#8E6810',
+                    fontWeight: 700,
+                  }}
+                >
+                  🎯 Sınav Modu: {examMode ? 'Açık' : 'Kapalı'}
+                </button>
+
+                <Link href={startHref} className="btn btn-secondary">
+                  ▶ Başla
                 </Link>
               </div>
-            ))}
+            </div>
           </div>
 
           <div
             className="card"
             style={{
-              marginTop: '1.25rem',
               padding: '1.25rem',
+              marginBottom: '1.25rem',
+              background: 'linear-gradient(135deg, var(--color-primary-light), white)',
+              borderColor: 'rgba(26, 95, 110, 0.15)',
             }}
           >
             <div
@@ -201,20 +442,94 @@ export default function SentencesPage() {
                 marginBottom: '0.45rem',
               }}
             >
-              Yakında eklenecek
+              Geçerli oturum özeti
             </div>
 
             <div
               style={{
                 display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
                 gap: '0.75rem',
               }}
             >
-              <InfoRow text="Seçimli temel cümle oluşturma arayüzü" />
-              <InfoRow text="Cümleyi doğru / hatalı değerlendirme" />
-              <InfoRow text="Admin tarafından hazırlanmış cümle egzersizleri" />
-              <InfoRow text="Aynı cümleden çoklu soru üretimi" />
+              <InfoBox label="Mod" value={modeLabel} />
+              <InfoBox label="Soru dili" value={langLabel(questionLang)} />
+              <InfoBox label="Cevap dili" value={langLabel(answerLang)} />
+              <InfoBox
+                label="Kelime türleri"
+                value={
+                  selectedWordTypes.length > 0
+                    ? `${selectedWordTypes.length} seçildi`
+                    : 'Tümü'
+                }
+              />
+              <InfoBox
+                label="Kategoriler"
+                value={
+                  selectedCategoryLabels.length > 0
+                    ? `${selectedCategoryLabels.length} seçildi`
+                    : 'Tümü'
+                }
+              />
+              <InfoBox label="Soru sayısı" value={String(questionCount)} />
+              <InfoBox label="Sınav modu" value={examMode ? 'Açık' : 'Kapalı'} />
             </div>
+
+            {selectedWordTypes.length > 0 && (
+              <div
+                style={{
+                  marginTop: '0.85rem',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '0.45rem',
+                }}
+              >
+                {selectedWordTypes.map((type) => (
+                  <span key={type} className="badge">
+                    {type}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {selectedCategoryLabels.length > 0 && (
+              <div
+                style={{
+                  marginTop: '0.65rem',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '0.45rem',
+                }}
+              >
+                {selectedCategoryLabels.map((label) => (
+                  <span key={label} className="badge badge-primary">
+                    {label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div
+            className="responsive-grid-3"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+              gap: '1rem',
+            }}
+          >
+            <ModuleCard
+              title="Kelime Öğren"
+              desc="Kart tabanlı normal öğrenme ve yön seçmeli çalışma akışı."
+            />
+            <ModuleCard
+              title="Cümleden Öğren"
+              desc="İngilizce cümleden Süryanice eksik kelime tamamlama modülü sıraya alındı."
+            />
+            <ModuleCard
+              title="Grup Bazlı Sınav"
+              desc="Sadece zamirler veya sadece fiiller gibi grup odaklı test sistemi sırada."
+            />
           </div>
         </div>
       </main>
@@ -222,19 +537,95 @@ export default function SentencesPage() {
   )
 }
 
-function InfoRow({ text }: { text: string }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div>
+      <label
+        style={{
+          display: 'block',
+          fontSize: '0.78rem',
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: 'var(--color-text)',
+          fontWeight: 700,
+          marginBottom: '0.45rem',
+        }}
+      >
+        {label}
+      </label>
+      {children}
+    </div>
+  )
+}
+
+function InfoBox({ label, value }: { label: string; value: string }) {
   return (
     <div
       style={{
         border: '1px solid var(--color-border)',
         borderRadius: 10,
-        padding: '0.85rem 1rem',
+        padding: '0.8rem 0.9rem',
         background: 'var(--color-bg-card)',
-        fontSize: '0.92rem',
-        color: 'var(--color-text)',
       }}
     >
-      {text}
+      <div
+        style={{
+          fontSize: '0.76rem',
+          color: 'var(--color-text-muted)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.08em',
+          marginBottom: '0.25rem',
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: '0.95rem',
+          fontWeight: 700,
+          color: 'var(--color-text)',
+        }}
+      >
+        {value}
+      </div>
     </div>
   )
+}
+
+function ModuleCard({ title, desc }: { title: string; desc: string }) {
+  return (
+    <div className="card" style={{ padding: '1.2rem' }}>
+      <h2
+        style={{
+          fontSize: '1.05rem',
+          marginBottom: '0.45rem',
+          color: 'var(--color-text)',
+        }}
+      >
+        {title}
+      </h2>
+
+      <p
+        style={{
+          fontSize: '0.9rem',
+          color: 'var(--color-text-muted)',
+          lineHeight: 1.6,
+        }}
+      >
+        {desc}
+      </p>
+    </div>
+  )
+}
+
+function langLabel(value: LearnLang) {
+  if (value === 'tr') return 'Türkçe'
+  if (value === 'sy') return 'Süryanice'
+  return 'İngilizce'
 }

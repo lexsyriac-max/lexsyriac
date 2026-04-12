@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import * as XLSX from 'xlsx'
@@ -27,6 +27,14 @@ type WordForm = {
   tense: string | null
   person: string | null
   polarity: string | null
+}
+
+type WordMeta = Word & {
+  source?: 'manual' | 'database' | 'sedra' | 'ai' | string | null
+  is_verified?: boolean | null
+  sedra_verified?: boolean | null
+  notes?: string | null
+  root?: string | null
 }
 
 const FILTER_TABS = [
@@ -86,41 +94,53 @@ export default function WordTable({
   }
 
   useEffect(() => {
-    loadForms()
+    void loadForms()
   }, [words])
 
-  const filtered = words.filter((w) => {
-    const q = search.toLowerCase()
-    const matchSearch =
-      !q ||
-      [w.turkish, w.english, w.syriac, w.transliteration].some((v) =>
-        v?.toLowerCase().includes(q)
-      )
+  const filtered = useMemo(() => {
+    return words.filter((word) => {
+      const w = word as WordMeta
+      const q = search.toLowerCase()
 
-    let matchTab = true
+      const matchSearch =
+        !q ||
+        [
+          w.turkish,
+          w.english,
+          w.syriac,
+          w.transliteration,
+          w.root || '',
+          w.word_type,
+          w.source || '',
+          w.notes || '',
+        ].some((v) => String(v || '').toLowerCase().includes(q))
 
-    if (tab === 'Türkçe') matchTab = !!w.turkish
-    if (tab === 'Süryanice') matchTab = !!w.syriac
-    if (tab === 'İngilizce') matchTab = !!w.english
-    if (tab === 'Türe Göre') matchTab = typeFilter ? w.word_type === typeFilter : true
+      let matchTab = true
 
-    if (tab === 'Eksik Tamamla') {
-      const missingMap: Record<string, boolean> = {
-        eksik_sy: !w.syriac,
-        eksik_tr: !w.turkish,
-        eksik_en: !w.english,
-        eksik_img: !w.image_url,
-        eksik_audio: !w.audio_url,
-        eksik_trans: !w.transliteration,
+      if (tab === 'Türkçe') matchTab = !!w.turkish
+      if (tab === 'Süryanice') matchTab = !!w.syriac
+      if (tab === 'İngilizce') matchTab = !!w.english
+      if (tab === 'Türe Göre') matchTab = typeFilter ? w.word_type === typeFilter : true
+
+      if (tab === 'Eksik Tamamla') {
+        const missingMap: Record<string, boolean> = {
+          eksik_sy: !w.syriac,
+          eksik_tr: !w.turkish,
+          eksik_en: !w.english,
+          eksik_img: !w.image_url,
+          eksik_audio: !w.audio_url,
+          eksik_trans: !w.transliteration,
+          eksik_root: !w.root,
+        }
+
+        matchTab = eksikFilter
+          ? (missingMap[eksikFilter] ?? true)
+          : Object.values(missingMap).some(Boolean)
       }
 
-      matchTab = eksikFilter
-        ? (missingMap[eksikFilter] ?? true)
-        : Object.values(missingMap).some(Boolean)
-    }
-
-    return matchSearch && matchTab
-  })
+      return matchSearch && matchTab
+    })
+  }, [words, search, tab, typeFilter, eksikFilter])
 
   function exportCSV() {
     const headers = [
@@ -128,27 +148,38 @@ export default function WordTable({
       'İngilizce',
       'Süryanice',
       'Transliterasyon',
+      'Kök',
       'Kelime Türü',
+      'Kaynak',
+      'Doğrulandı',
+      'Sedra Doğrulandı',
+      'Notlar',
       'Görsel URL',
       'Ses URL',
       'Eklenme',
     ]
 
-    const rows = filtered.map((w) => [
-      w.turkish,
-      w.english,
-      w.syriac,
-      w.transliteration,
-      w.word_type,
-      w.image_url || '',
-      w.audio_url || '',
-      new Date(w.created_at).toLocaleDateString('tr-TR'),
-    ])
+    const rows = filtered.map((word) => {
+      const w = word as WordMeta
+      return [
+        w.turkish,
+        w.english,
+        w.syriac,
+        w.transliteration,
+        w.root || '',
+        w.word_type,
+        w.source || '',
+        w.is_verified ? 'Evet' : 'Hayır',
+        w.sedra_verified ? 'Evet' : 'Hayır',
+        w.notes || '',
+        w.image_url || '',
+        w.audio_url || '',
+        new Date(w.created_at).toLocaleDateString('tr-TR'),
+      ]
+    })
 
     const csv = [headers, ...rows]
-      .map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
-      )
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
       .join('\n')
 
     const blob = new Blob(['\uFEFF' + csv], {
@@ -163,40 +194,48 @@ export default function WordTable({
   }
 
   function exportExcel() {
-    const rows = filtered.map((w) => ({
-      Türkçe: w.turkish || '',
-      İngilizce: w.english || '',
-      Süryanice: w.syriac || '',
-      Transliterasyon: w.transliteration || '',
-      'Kelime Türü': w.word_type || '',
-      'Görsel URL': w.image_url || '',
-      'Ses URL': w.audio_url || '',
-      Eklenme: new Date(w.created_at).toLocaleDateString('tr-TR'),
-    }))
+    const rows = filtered.map((word) => {
+      const w = word as WordMeta
+      return {
+        Türkçe: w.turkish || '',
+        İngilizce: w.english || '',
+        Süryanice: w.syriac || '',
+        Transliterasyon: w.transliteration || '',
+        Kök: w.root || '',
+        'Kelime Türü': w.word_type || '',
+        Kaynak: w.source || '',
+        Doğrulandı: w.is_verified ? 'Evet' : 'Hayır',
+        'Sedra Doğrulandı': w.sedra_verified ? 'Evet' : 'Hayır',
+        Notlar: w.notes || '',
+        'Görsel URL': w.image_url || '',
+        'Ses URL': w.audio_url || '',
+        Eklenme: new Date(w.created_at).toLocaleDateString('tr-TR'),
+      }
+    })
 
     const worksheet = XLSX.utils.json_to_sheet(rows)
     const workbook = XLSX.utils.book_new()
 
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Kelimeler')
-    XLSX.writeFile(
-      workbook,
-      `lexsyriac-${new Date().toISOString().slice(0, 10)}.xlsx`
-    )
+    XLSX.writeFile(workbook, `lexsyriac-${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
   function exportPDF() {
     const rows = filtered
-      .map(
-        (w, i) => `
+      .map((word, i) => {
+        const w = word as WordMeta
+        return `
       <tr style="background:${i % 2 === 0 ? '#f9f9f9' : 'white'}">
         <td>${i + 1}</td>
-        <td>${w.turkish || ''}</td>
-        <td style="direction:rtl;font-family:serif;font-size:1.1em">${w.syriac || ''}</td>
-        <td>${w.transliteration || ''}</td>
-        <td>${w.english || ''}</td>
-        <td>${w.word_type || ''}</td>
+        <td>${escapeHtml(w.turkish || '')}</td>
+        <td style="direction:rtl;font-family:serif;font-size:1.1em">${escapeHtml(w.syriac || '')}</td>
+        <td>${escapeHtml(w.transliteration || '')}</td>
+        <td>${escapeHtml(w.root || '')}</td>
+        <td>${escapeHtml(w.english || '')}</td>
+        <td>${escapeHtml(w.word_type || '')}</td>
+        <td>${escapeHtml(w.source || '')}</td>
       </tr>`
-      )
+      })
       .join('')
 
     const html = `<!DOCTYPE html>
@@ -224,8 +263,10 @@ export default function WordTable({
         <th>Türkçe</th>
         <th>Süryanice</th>
         <th>Translit.</th>
+        <th>Kök</th>
         <th>İngilizce</th>
         <th>Tür</th>
+        <th>Kaynak</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -254,7 +295,7 @@ export default function WordTable({
 
     const audio = new Audio(url)
     audioRef.current = audio
-    audio.play()
+    void audio.play()
     setPlayingId(id)
 
     audio.onended = () => {
@@ -291,9 +332,9 @@ export default function WordTable({
     const { error } = await supabase.from('word_forms').insert({
       word_id: selectedWordId,
       form_text: formText.trim(),
-      form_type: formType.trim(),
+      form_type: formType.trim() || null,
       language: formLanguage,
-      transliteration: formTransliteration.trim(),
+      transliteration: formTransliteration.trim() || null,
     })
 
     setSavingForm(false)
@@ -306,6 +347,29 @@ export default function WordTable({
     await loadForms()
     setExpandedWordId(selectedWordId)
     closeAddForm()
+  }
+
+  async function copyText(value: string, label: string) {
+    if (!value.trim()) return
+    try {
+      await navigator.clipboard.writeText(value)
+      alert(`${label} kopyalandı.`)
+    } catch {
+      alert(`${label} kopyalanamadı.`)
+    }
+  }
+
+  function openSedra(word: WordMeta) {
+    const query = word.syriac || word.transliteration || word.turkish || ''
+    window.open('https://sedra.bethmardutho.org/', '_blank', 'noopener,noreferrer')
+    if (query) {
+      void navigator.clipboard.writeText(query)
+    }
+  }
+
+  function openDukhrana(word: WordMeta) {
+    const query = encodeURIComponent(word.syriac || word.transliteration || word.turkish || '')
+    window.open(`https://dukhrana.com/lexicon/search.php?term=${query}`, '_blank', 'noopener,noreferrer')
   }
 
   return (
@@ -359,7 +423,7 @@ export default function WordTable({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="input"
-            placeholder="🔍  Kelime ara — tüm dillerde..."
+            placeholder="🔍  Kelime ara — tüm dillerde ve kökte..."
           />
         </div>
 
@@ -384,10 +448,8 @@ export default function WordTable({
                 borderRadius: 20,
                 fontSize: '0.8rem',
                 border: '1.5px solid',
-                borderColor:
-                  tab === t ? 'var(--color-primary)' : 'var(--color-border)',
-                background:
-                  tab === t ? 'var(--color-primary)' : 'transparent',
+                borderColor: tab === t ? 'var(--color-primary)' : 'var(--color-border)',
+                background: tab === t ? 'var(--color-primary)' : 'transparent',
                 color: tab === t ? 'white' : 'var(--color-text)',
                 cursor: 'pointer',
                 fontWeight: tab === t ? 600 : 400,
@@ -490,8 +552,8 @@ export default function WordTable({
             {search
               ? 'Eşleşen kelime bulunamadı.'
               : tab === 'Eksik Tamamla'
-              ? '✓ Bu kategoride eksik yok!'
-              : 'Henüz kelime eklenmedi.'}
+                ? '✓ Bu kategoride eksik yok!'
+                : 'Henüz kelime eklenmedi.'}
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
@@ -539,7 +601,8 @@ export default function WordTable({
               </thead>
 
               <tbody>
-                {filtered.map((w, i) => {
+                {filtered.map((word, i) => {
+                  const w = word as WordMeta
                   const forms = formsMap[w.id] || []
                   const isExpanded = expandedWordId === w.id
                   const isAddingForm = selectedWordId === w.id
@@ -548,12 +611,12 @@ export default function WordTable({
                     <tr
                       key={w.id}
                       style={{ borderBottom: '1px solid var(--color-border)' }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background = '#FAFAF8')
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.background = 'transparent')
-                      }
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#FAFAF8'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent'
+                      }}
                     >
                       <td
                         style={{
@@ -605,33 +668,94 @@ export default function WordTable({
                           padding: '0.5rem 0.75rem',
                           fontWeight: 500,
                           verticalAlign: 'top',
-                          minWidth: 260,
+                          minWidth: 340,
                         }}
                       >
-                        <div>{w.turkish}</div>
+                        <div style={{ fontWeight: 600, color: 'var(--color-text)' }}>
+                          {w.turkish}
+                        </div>
 
                         <div
                           style={{
-                            marginTop: '0.4rem',
+                            marginTop: '0.45rem',
+                            display: 'flex',
+                            gap: '0.35rem',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <MetaPill>Kaynak: {w.source || 'manual'}</MetaPill>
+
+                          {w.is_verified ? (
+                            <MetaPill color="#166534" bg="#ecfdf5" border="#bbf7d0">
+                              Doğrulandı
+                            </MetaPill>
+                          ) : (
+                            <MetaPill>Doğrulanmadı</MetaPill>
+                          )}
+
+                          {w.sedra_verified && (
+                            <MetaPill color="#1d4ed8" bg="#eff6ff" border="#bfdbfe">
+                              Sedra doğrulandı
+                            </MetaPill>
+                          )}
+
+                          {!!w.root && (
+                            <MetaPill color="#92400e" bg="#fffbeb" border="#fde68a">
+                              Kök: {w.root}
+                            </MetaPill>
+                          )}
+                        </div>
+
+                        {!!w.notes && (
+                          <div
+                            style={{
+                              marginTop: '0.5rem',
+                              fontSize: '0.76rem',
+                              lineHeight: 1.45,
+                              color: 'var(--color-text-muted)',
+                              background: '#F8F8F4',
+                              border: '1px solid var(--color-border)',
+                              borderRadius: 8,
+                              padding: '0.45rem 0.6rem',
+                            }}
+                          >
+                            <strong style={{ color: 'var(--color-text)' }}>Not:</strong> {w.notes}
+                          </div>
+                        )}
+
+                        <div
+                          style={{
+                            marginTop: '0.5rem',
                             display: 'flex',
                             gap: '0.4rem',
                             flexWrap: 'wrap',
                           }}
                         >
                           {forms.length > 0 && (
-                            <button
-                              onClick={() => toggleForms(w.id)}
-                              style={smallBtn}
-                            >
+                            <button onClick={() => toggleForms(w.id)} style={smallBtn}>
                               {isExpanded ? '− Çekimleri Gizle' : `+ Çekimleri Göster (${forms.length})`}
                             </button>
                           )}
 
-                          <button
-                            onClick={() => openAddForm(w.id)}
-                            style={smallBtn}
-                          >
+                          <button onClick={() => openAddForm(w.id)} style={smallBtn}>
                             + Çekim Ekle
+                          </button>
+
+                          {!!w.syriac && (
+                            <button
+                              onClick={() => void copyText(w.syriac || '', 'Süryanice kelime')}
+                              style={smallBtn}
+                            >
+                              Kopyala
+                            </button>
+                          )}
+
+                          <button onClick={() => openSedra(w)} style={smallBtn}>
+                            Sedra
+                          </button>
+
+                          <button onClick={() => openDukhrana(w)} style={smallBtn}>
+                            Dukhrana
                           </button>
                         </div>
 
@@ -724,9 +848,23 @@ export default function WordTable({
                           fontFamily: 'serif',
                           fontSize: '1.05rem',
                           verticalAlign: 'top',
+                          minWidth: 140,
                         }}
                       >
                         {w.syriac}
+                        {!!w.transliteration && (
+                          <div
+                            style={{
+                              direction: 'ltr',
+                              fontFamily: 'inherit',
+                              fontSize: '0.72rem',
+                              color: 'var(--color-text-muted)',
+                              marginTop: '0.35rem',
+                            }}
+                          >
+                            {w.transliteration}
+                          </div>
+                        )}
                       </td>
 
                       <td
@@ -734,6 +872,7 @@ export default function WordTable({
                           padding: '0.5rem 0.75rem',
                           color: 'var(--color-text-muted)',
                           verticalAlign: 'top',
+                          minWidth: 160,
                         }}
                       >
                         {w.english}
@@ -748,6 +887,7 @@ export default function WordTable({
                             background: 'var(--color-bg)',
                             border: '1px solid var(--color-border)',
                             color: 'var(--color-text-muted)',
+                            whiteSpace: 'nowrap',
                           }}
                         >
                           {w.word_type}
@@ -783,18 +923,10 @@ export default function WordTable({
 
                       <td style={{ padding: '0.4rem 0.75rem', verticalAlign: 'top' }}>
                         <div style={{ display: 'flex', gap: '0.25rem' }}>
-                          <button
-                            onClick={() => onDetail(w)}
-                            title="Detay"
-                            style={IB}
-                          >
+                          <button onClick={() => onDetail(w)} title="Detay" style={IB}>
                             👁
                           </button>
-                          <button
-                            onClick={() => onEdit(w)}
-                            title="Düzenle"
-                            style={IB}
-                          >
+                          <button onClick={() => onEdit(w)} title="Düzenle" style={IB}>
                             ✏️
                           </button>
                           <button
@@ -816,6 +948,44 @@ export default function WordTable({
       </div>
     </div>
   )
+}
+
+function MetaPill({
+  children,
+  color = 'var(--color-text-muted)',
+  bg = 'var(--color-bg)',
+  border = 'var(--color-border)',
+}: {
+  children: React.ReactNode
+  color?: string
+  bg?: string
+  border?: string
+}) {
+  return (
+    <span
+      style={{
+        padding: '0.2rem 0.5rem',
+        borderRadius: 999,
+        fontSize: '0.68rem',
+        lineHeight: 1.2,
+        border: `1px solid ${border}`,
+        background: bg,
+        color,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </span>
+  )
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
 }
 
 const IB: React.CSSProperties = {

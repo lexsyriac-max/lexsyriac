@@ -131,7 +131,14 @@ export default function HomePage() {
       desc: 'Kaynaklar, notlar ve yardımcı içerikler.',
       icon: '🗃️',
     },
-  ]
+  
+    {
+      href: '/learn-sentences',
+      icon: '🗣️',
+      title: 'Cümle Öğren',
+      desc: 'Doğrulanmış cümle havuzundan çoktan seçmeli ve boşluk doldurma çalışması.',
+    },
+]
 
   function handleSearchSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -497,6 +504,7 @@ export default function HomePage() {
             )}
           </section>
         </div>
+
       </main>
 
       <section

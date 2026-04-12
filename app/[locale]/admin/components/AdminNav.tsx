@@ -2,25 +2,18 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { adminPages } from '@/config/admin-menu'
 
 interface Props {
   locale: string
 }
 
-const NAV_ITEMS = [
-  { key: 'dashboard', label: 'Dashboard', icon: '📊', path: '' },
-  { key: 'words', label: 'Kelimeler', icon: '📖', path: '/words' },
-  { key: 'categories', label: 'Kategoriler', icon: '🗂️', path: '/categories' },
-  { key: 'grammar', label: 'Gramer', icon: '📝', path: '/grammar' },
-  { key: 'pending', label: 'Pending', icon: '⏳', path: '/pending' },
-  { key: 'import', label: 'İçe Aktar', icon: '⬆', path: '/import' },
-  { key: 'lexscan', label: 'LexScan', icon: '📄', path: '/lexscan' },
-  { key: 'sentences', label: 'Cümleler', icon: '✍️', path: '/sentences' },
-  { key: 'users', label: 'Kullanıcılar', icon: '👥', path: '/users' },
-]
-
 export default function AdminNav({ locale }: Props) {
   const pathname = usePathname()
+
+  const navItems = adminPages
+    .filter((page) => page.enabled)
+    .sort((a, b) => a.order - b.order)
 
   return (
     <nav
@@ -36,9 +29,10 @@ export default function AdminNav({ locale }: Props) {
         className="container"
         style={{
           display: 'flex',
-          alignItems: 'center',
-          height: 52,
-          gap: '0.25rem',
+          alignItems: 'flex-start',
+          gap: '0.5rem',
+          paddingTop: '0.5rem',
+          paddingBottom: '0.5rem',
         }}
       >
         <Link
@@ -47,9 +41,9 @@ export default function AdminNav({ locale }: Props) {
             color: 'rgba(255,255,255,0.6)',
             fontSize: '0.8rem',
             textDecoration: 'none',
-            marginRight: '1rem',
             whiteSpace: 'nowrap',
             flexShrink: 0,
+            padding: '0.4rem 0.2rem',
           }}
         >
           ← Site
@@ -58,10 +52,10 @@ export default function AdminNav({ locale }: Props) {
         <span
           style={{
             color: 'rgba(255,255,255,0.25)',
-            marginRight: '0.75rem',
             fontSize: '0.8rem',
             whiteSpace: 'nowrap',
             flexShrink: 0,
+            padding: '0.4rem 0.2rem',
           }}
         >
           Admin
@@ -70,23 +64,42 @@ export default function AdminNav({ locale }: Props) {
         <div
           style={{
             display: 'flex',
-            gap: '0.15rem',
-            overflowX: 'auto',
-            paddingBottom: 2,
-            scrollbarWidth: 'thin',
+            flexWrap: 'wrap',
+            gap: '0.35rem',
+            flex: 1,
+            minWidth: 0,
           }}
         >
-          {NAV_ITEMS.map((item) => {
-            const href = `/${locale}/admin${item.path}`
-            const isActive =
-              item.path === ''
-                ? pathname === `/${locale}/admin`
-                : pathname.startsWith(href)
+          <Link
+            href={`/${locale}/admin`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              padding: '0.4rem 0.75rem',
+              borderRadius: 8,
+              fontSize: '0.82rem',
+              fontWeight: pathname === `/${locale}/admin` ? 600 : 400,
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+              color: pathname === `/${locale}/admin` ? 'white' : 'rgba(255,255,255,0.68)',
+              background: pathname === `/${locale}/admin` ? 'rgba(255,255,255,0.15)' : 'transparent',
+              transition: 'all 0.15s',
+            }}
+          >
+            <span>📊</span>
+            <span>Dashboard</span>
+          </Link>
+
+          {navItems.map((page) => {
+            const href = `/${locale}${page.path}`
+            const isActive = pathname.startsWith(href)
 
             return (
               <Link
-                key={item.key}
+                key={page.id}
                 href={href}
+                title={page.description_tr || page.description || page.label_tr || page.label}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -100,11 +113,10 @@ export default function AdminNav({ locale }: Props) {
                   color: isActive ? 'white' : 'rgba(255,255,255,0.68)',
                   background: isActive ? 'rgba(255,255,255,0.15)' : 'transparent',
                   transition: 'all 0.15s',
-                  flexShrink: 0,
                 }}
               >
-                <span>{item.icon}</span>
-                <span>{item.label}</span>
+                <span>{page.icon}</span>
+                <span>{page.label_tr || page.label}</span>
               </Link>
             )
           })}

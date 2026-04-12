@@ -56,20 +56,20 @@ export default function CategoryTableClient({
       <section
         style={{
           background: 'linear-gradient(135deg, var(--color-primary) 0%, #0F3D47 100%)',
-          padding: '2.25rem 0',
+          padding: '2.35rem 0',
         }}
       >
         <div className="container">
-          <div style={{ marginBottom: '0.5rem' }}>
+          <div style={{ marginBottom: '0.55rem' }}>
             <Link
-              href={`/${locale}`}
+              href={`/${locale}/categories`}
               style={{
                 color: 'rgba(255,255,255,0.78)',
                 textDecoration: 'none',
                 fontSize: '0.88rem',
               }}
             >
-              ← Ana Sayfa
+              ← Kategorilere Dön
             </Link>
           </div>
 
@@ -114,13 +114,19 @@ export default function CategoryTableClient({
           <div
             className="card"
             style={{
-              padding: '1rem',
+              padding: '1rem 1.1rem',
               marginBottom: '1rem',
               background: '#FFFDF7',
               border: '1px solid #E8DFC2',
             }}
           >
-            <h2 style={{ fontSize: '1.05rem', marginBottom: '0.75rem' }}>
+            <h2
+              style={{
+                fontSize: '1.02rem',
+                marginBottom: '0.7rem',
+                color: 'var(--color-text)',
+              }}
+            >
               Kategori Notu
             </h2>
 
@@ -129,6 +135,7 @@ export default function CategoryTableClient({
                 color: 'var(--color-text)',
                 lineHeight: 1.75,
                 whiteSpace: 'pre-wrap',
+                fontSize: '0.93rem',
               }}
             >
               {category.teaching_note}
@@ -147,21 +154,43 @@ export default function CategoryTableClient({
               marginBottom: '1rem',
             }}
           >
-            <h2 style={{ fontSize: '1.05rem' }}>
-              Kelime Listesi ({filteredWords.length})
-            </h2>
+            <div>
+              <h2
+                style={{
+                  fontSize: '1.06rem',
+                  color: 'var(--color-text)',
+                  marginBottom: '0.2rem',
+                }}
+              >
+                Kelime Listesi
+              </h2>
+
+              <div
+                style={{
+                  fontSize: '0.82rem',
+                  color: 'var(--color-text-muted)',
+                }}
+              >
+                Toplam: {filteredWords.length}
+              </div>
+            </div>
 
             <input
               className="input"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Kelime ara..."
-              style={{ maxWidth: 280 }}
+              placeholder="Türkçe, İngilizce, Süryanice veya tür ara..."
+              style={{ maxWidth: 340, width: '100%' }}
             />
           </div>
 
           {filteredWords.length === 0 ? (
-            <div style={{ color: 'var(--color-text-muted)' }}>
+            <div
+              style={{
+                color: 'var(--color-text-muted)',
+                padding: '1rem 0.25rem',
+              }}
+            >
               Eşleşen kelime bulunamadı.
             </div>
           ) : (
@@ -169,40 +198,40 @@ export default function CategoryTableClient({
               <table
                 style={{
                   width: '100%',
-                  borderCollapse: 'collapse',
-                  minWidth: 860,
+                  borderCollapse: 'separate',
+                  borderSpacing: 0,
+                  minWidth: 920,
                 }}
               >
                 <thead>
                   <tr
                     style={{
                       background: '#F7F7F5',
-                      borderBottom: '1px solid var(--color-border)',
                     }}
                   >
-                    <th style={TH}>Görsel</th>
+                    <th style={{ ...TH, borderTopLeftRadius: 10 }}>Görsel</th>
                     <th style={TH}>Türkçe</th>
                     <th style={TH}>Süryanice</th>
                     <th style={TH}>İngilizce</th>
                     <th style={TH}>Transliterasyon</th>
                     <th style={TH}>Tür</th>
-                    <th style={TH}>Ses</th>
+                    <th style={{ ...TH, borderTopRightRadius: 10 }}>Ses</th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {filteredWords.map((word) => (
+                  {filteredWords.map((word, index) => (
                     <tr
                       key={word.id}
                       style={{
-                        borderBottom: '1px solid var(--color-border)',
+                        background: index % 2 === 0 ? 'white' : '#FCFCFA',
                       }}
                     >
                       <td style={TD}>
                         <div
                           style={{
-                            width: 56,
-                            height: 42,
+                            width: 58,
+                            height: 44,
                             borderRadius: 8,
                             overflow: 'hidden',
                             background: '#F4F1EA',
@@ -223,27 +252,54 @@ export default function CategoryTableClient({
                               }}
                             />
                           ) : (
-                            <span style={{ fontSize: '0.72rem', color: '#888' }}>—</span>
+                            <span
+                              style={{
+                                fontSize: '0.72rem',
+                                color: '#888',
+                              }}
+                            >
+                              —
+                            </span>
                           )}
                         </div>
                       </td>
 
-                      <td style={TDStrong}>{word.turkish}</td>
-                      <td style={TD}>{word.syriac}</td>
-                      <td style={TD}>{word.english}</td>
-                      <td style={TD}>{word.transliteration}</td>
+                      <td style={TDStrong}>
+                        <div style={{ lineHeight: 1.3 }}>{word.turkish}</div>
+                      </td>
+
+                      <td style={TDSyriac}>
+                        <div style={{ lineHeight: 1.35 }}>{word.syriac}</div>
+                      </td>
+
+                      <td style={TD}>
+                        <div style={{ lineHeight: 1.35 }}>{word.english}</div>
+                      </td>
+
+                      <td style={TDMuted}>
+                        <div style={{ lineHeight: 1.35 }}>{word.transliteration}</div>
+                      </td>
+
                       <td style={TD}>
                         <span className="badge badge-primary">
                           {word.word_type || 'kelime'}
                         </span>
                       </td>
+
                       <td style={TD}>
                         {word.audio_url ? (
                           <audio controls style={{ maxWidth: 180, height: 32 }}>
                             <source src={word.audio_url} />
                           </audio>
                         ) : (
-                          <span style={{ fontSize: '0.82rem', color: '#888' }}>Ses yok</span>
+                          <span
+                            style={{
+                              fontSize: '0.82rem',
+                              color: '#888',
+                            }}
+                          >
+                            Ses yok
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -260,21 +316,35 @@ export default function CategoryTableClient({
 
 const TH: React.CSSProperties = {
   textAlign: 'left',
-  padding: '0.85rem 0.75rem',
-  fontSize: '0.82rem',
+  padding: '0.9rem 0.8rem',
+  fontSize: '0.81rem',
   color: 'var(--color-text-muted)',
   fontWeight: 700,
   letterSpacing: '0.03em',
+  borderBottom: '1px solid var(--color-border)',
 }
 
 const TD: React.CSSProperties = {
-  padding: '0.85rem 0.75rem',
+  padding: '0.9rem 0.8rem',
   fontSize: '0.92rem',
   color: 'var(--color-text)',
   verticalAlign: 'middle',
+  borderBottom: '1px solid var(--color-border)',
 }
 
 const TDStrong: React.CSSProperties = {
   ...TD,
   fontWeight: 700,
+}
+
+const TDSyriac: React.CSSProperties = {
+  ...TD,
+  fontFamily: 'var(--font-display)',
+  fontSize: '1rem',
+  color: 'var(--color-primary)',
+}
+
+const TDMuted: React.CSSProperties = {
+  ...TD,
+  color: 'var(--color-text-muted)',
 }
