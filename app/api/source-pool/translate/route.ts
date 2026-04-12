@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase'
-import Anthropic from '@anthropic-ai/sdk'
 
 export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
   try {
     const { document_id } = await req.json()
@@ -15,7 +13,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'document_id gerekli' })
     }
 
-    // Chunk'ları getir
     const { data: chunks, error } = await supabase
       .from('source_text_chunks')
       .select('id, content')
@@ -31,23 +28,33 @@ export async function POST(req: NextRequest) {
       if (!chunk.content?.trim()) continue
 
       try {
-        const message = await anthropic.messages.create({
-          model: 'claude-opus-4-5',
-          max_tokens: 1024,
-          messages: [{
-            role: 'user',
-            content: `Aşağıdaki metni Türkçe'ye çevir. Sadece çeviriyi yaz, açıklama ekleme:\n\n${chunk.content}`
-          }]
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': process.env.ANTHROPIC_API_KEY!,
+            'anthropic-version': '2023-06-01',
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5',
+            max_tokens: 1024,
+            messages: [{
+              role: 'user',
+              content: `Aşağıdaki metni Türkçe'ye çevir. Sadece çeviriyi yaz, açıklama ekleme:\n\n${chunk.content}`
+            }]
+          })
         })
 
-        const translation = message.content[0].type === 'text' ? message.content[0].text : ''
+        const data = await res.json()
+        const translation = data.content?.[0]?.text || ''
 
-        await supabase
-          .from('source_text_chunks')
-          .update({ translation_tr: translation })
-          .eq('id', chunk.id)
-
-        translated++
+        if (translation) {
+          await supabase
+            .from('source_text_chunks')
+            .update({ translation_tr: translation })
+            .eq('id', chunk.id)
+          translated++
+        }
       } catch {
         continue
       }
