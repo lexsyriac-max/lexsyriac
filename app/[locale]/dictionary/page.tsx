@@ -550,6 +550,9 @@ export default function DictionaryPage() {
                 marginTop: '1rem',
               }}
             >
+              <Link href={`/${locale}/dictionary/${selectedWord.id}`} className="btn btn-ghost btn-sm">
+                Detay Sayfası →
+              </Link>
               <Link href={`/${locale}/learn`} className="btn btn-secondary">
                 Öğrenme Alanına Git
               </Link>
