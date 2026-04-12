@@ -88,10 +88,15 @@ Syriac sentence: "${data.sentence}"`
           })
         })
         const trData = await tr.json()
-        const raw = (trData.text || '').replace(/\`\`\`json|\`\`\`/g, '').trim()
-        const parsed = JSON.parse(raw)
-        setTranslations(parsed)
-      } catch { /* ignore */ }
+        const raw = (trData.text || '').replace(/```json|```/g, '').trim()
+        if (!raw) throw new Error('Boş yanıt')
+        // JSON olmayabilir, güvenli parse
+        const jsonMatch = raw.match(/\{[^}]+\}/)
+        const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw)
+        if (parsed.tr || parsed.en) setTranslations(parsed)
+      } catch (e) {
+        console.warn('Çeviri hatası:', e)
+      }
       finally { setTranslating(false) }
     }
   }
