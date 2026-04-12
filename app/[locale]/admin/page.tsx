@@ -69,6 +69,7 @@ export default function AdminPage() {
       items: [
         { icon: '👥', label: 'Kullanıcılar', desc: 'Rol ve erişim yönetimi', href: `/${locale}/admin/users` },
         { icon: '🗂', label: 'Kategoriler', desc: 'Kelime kategorilerini yönet', href: `/${locale}/admin/categories` },
+        { icon: '📂', label: 'Kaynak Havuzu', desc: 'PDF/JPG yükle, OCR, kelime eşleştir', href: `/${locale}/admin/source-pool` },
       ]
     },
   ]
