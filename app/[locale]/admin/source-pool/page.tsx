@@ -26,6 +26,7 @@ export default function SourcePoolPage() {
   const [uploading, setUploading] = useState(false)
   const [indexing, setIndexing] = useState<string | null>(null)
   const [ocring, setOcring] = useState<string | null>(null)
+  const [translating, setTranslating] = useState<string | null>(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -149,6 +150,24 @@ export default function SourcePoolPage() {
     }
 
     setIndexing(null)
+  }
+
+  async function handleTranslate(id: string, title: string) {
+    setTranslating(id)
+    setError("")
+    setMessage("")
+    const res = await fetch("/api/source-pool/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ document_id: id }),
+    })
+    const json = await res.json()
+    if (json.success) {
+      setMessage(`✓ "${title}" — ${json.translated} chunk tercüme edildi.`)
+    } else {
+      setError(json.error)
+    }
+    setTranslating(null)
   }
 
   async function handleDelete(id: string, title: string) {
@@ -553,6 +572,14 @@ export default function SourcePoolPage() {
                           style={{ fontSize: '0.75rem' }}
                         >
                           {indexing === doc.id ? '⚙️ Eşleştiriliyor...' : '🔍 Eşleştir'}
+                        </button>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => handleTranslate(doc.id, doc.title)}
+                          disabled={ocring === doc.id || indexing === doc.id || translating === doc.id}
+                          style={{ fontSize: '0.75rem' }}
+                        >
+                          {translating === doc.id ? '⚙️ Tercüme...' : '🌐 Tercüme'}
                         </button>
                         <button
                           className="btn btn-ghost btn-sm"

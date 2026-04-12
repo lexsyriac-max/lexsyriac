@@ -16,6 +16,14 @@ type SourceDocument = {
   created_at: string
 }
 
+type Chunk = {
+  id: string
+  content: string
+  translation_tr: string | null
+  page_number: number
+  chunk_index: number
+}
+
 type MatchedWord = {
   id: string
   match_text: string
@@ -30,8 +38,10 @@ export default function ResourcesPage() {
   const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [wordsByDoc, setWordsByDoc] = useState<Record<string, MatchedWord[]>>({})
+  const [chunksByDoc, setChunksByDoc] = useState<Record<string, Chunk[]>>({})
   const [wordsLoading, setWordsLoading] = useState<string | null>(null)
   const [fileUrls, setFileUrls] = useState<Record<string, string>>({})
+  const [activeTab, setActiveTab] = useState<Record<string, 'original' | 'translation'>>({})
 
   useEffect(() => { loadDocs() }, [])
 
@@ -50,6 +60,7 @@ export default function ResourcesPage() {
     if (expandedId === doc.id) { setExpandedId(null); return }
     setExpandedId(doc.id)
 
+    // Dosya URL
     if (!fileUrls[doc.id]) {
       const { data } = supabase.storage.from('source-documents').getPublicUrl(doc.storage_path)
       if (data) setFileUrls(prev => ({ ...prev, [doc.id]: data.publicUrl }))
@@ -57,18 +68,35 @@ export default function ResourcesPage() {
 
     if (!wordsByDoc[doc.id]) {
       setWordsLoading(doc.id)
-      const { data, error } = await supabase
+
+      // Kelimeler
+      const { data: wData } = await supabase
         .from('source_word_index')
         .select('id, match_text, words ( id, turkish, syriac )')
         .eq('document_id', doc.id)
-      if (!error && data) {
-        const unique = data.filter((item, idx, arr) =>
+
+      if (wData) {
+        const unique = wData.filter((item, idx, arr) =>
           arr.findIndex(x => x.match_text === item.match_text) === idx
         )
         setWordsByDoc(prev => ({ ...prev, [doc.id]: unique as unknown as MatchedWord[] }))
       }
+
+      // Chunk'lar + tercümeler
+      const { data: cData } = await supabase
+        .from('source_text_chunks')
+        .select('id, content, translation_tr, page_number, chunk_index')
+        .eq('document_id', doc.id)
+        .order('chunk_index', { ascending: true })
+
+      if (cData) setChunksByDoc(prev => ({ ...prev, [doc.id]: cData }))
+
       setWordsLoading(null)
     }
+  }
+
+  function getTab(docId: string): 'original' | 'translation' {
+    return activeTab[docId] || 'original'
   }
 
   return (
@@ -113,10 +141,15 @@ export default function ResourcesPage() {
               {docs.map((doc) => {
                 const isExpanded = expandedId === doc.id
                 const words = wordsByDoc[doc.id] || []
+                const chunks = chunksByDoc[doc.id] || []
                 const fileUrl = fileUrls[doc.id]
                 const isImage = ['jpg', 'jpeg', 'png'].includes(doc.file_type.toLowerCase())
+                const tab = getTab(doc.id)
+                const hasTranslation = chunks.some(c => c.translation_tr)
+
                 return (
                   <div key={doc.id} className="card" style={{ overflow: 'hidden' }}>
+                    {/* Başlık */}
                     <div style={{ padding: '1.25rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }} onClick={() => handleExpand(doc)}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <span style={{ fontSize: '1.5rem' }}>{isImage ? '🖼️' : '📄'}</span>
@@ -139,6 +172,8 @@ export default function ResourcesPage() {
 
                     {isExpanded && (
                       <div style={{ borderTop: '1px solid var(--color-border)' }}>
+
+                        {/* Görsel + İndir */}
                         <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--color-border)' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                             <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -163,6 +198,73 @@ export default function ResourcesPage() {
                           )}
                         </div>
 
+                        {/* Metin + Tercüme */}
+                        {chunks.length > 0 && (
+                          <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--color-border)' }}>
+                            {/* Tab butonları */}
+                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                              <button
+                                className={`btn btn-sm ${tab === 'original' ? 'btn-primary' : 'btn-ghost'}`}
+                                onClick={() => setActiveTab(prev => ({ ...prev, [doc.id]: 'original' }))}
+                              >
+                                📝 Metin
+                              </button>
+                              {hasTranslation && (
+                                <button
+                                  className={`btn btn-sm ${tab === 'translation' ? 'btn-primary' : 'btn-ghost'}`}
+                                  onClick={() => setActiveTab(prev => ({ ...prev, [doc.id]: 'translation' }))}
+                                >
+                                  🌐 Tercüme
+                                </button>
+                              )}
+                              {!hasTranslation && (
+                                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', alignSelf: 'center', marginLeft: '0.5rem' }}>
+                                  (Tercüme için admin panelinden 🌐 Tercüme Et butonuna tıklayın)
+                                </span>
+                              )}
+                            </div>
+
+                            {/* İki kolon: orijinal + tercüme */}
+                            {tab === 'original' && hasTranslation ? (
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div>
+                                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Süryanice</div>
+                                  {chunks.map(c => (
+                                    <div key={c.id} style={{ fontSize: '0.9rem', lineHeight: 1.8, marginBottom: '0.75rem', padding: '0.75rem', background: 'var(--color-bg-subtle, #f8f8f8)', borderRadius: 8, direction: 'rtl', fontFamily: 'serif' }}>
+                                      {c.content}
+                                    </div>
+                                  ))}
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Türkçe</div>
+                                  {chunks.map(c => (
+                                    <div key={c.id} style={{ fontSize: '0.9rem', lineHeight: 1.8, marginBottom: '0.75rem', padding: '0.75rem', background: '#F0F8FA', borderRadius: 8 }}>
+                                      {c.translation_tr || <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Tercüme bekleniyor...</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : tab === 'translation' ? (
+                              <div style={{ display: 'grid', gap: '0.75rem' }}>
+                                {chunks.map(c => (
+                                  <div key={c.id} style={{ fontSize: '0.9rem', lineHeight: 1.8, padding: '0.75rem 1rem', background: '#F0F8FA', borderRadius: 8, borderLeft: '3px solid var(--color-primary)' }}>
+                                    {c.translation_tr || <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Tercüme bekleniyor...</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div style={{ display: 'grid', gap: '0.75rem' }}>
+                                {chunks.map(c => (
+                                  <div key={c.id} style={{ fontSize: '0.9rem', lineHeight: 1.8, padding: '0.75rem 1rem', background: 'var(--color-bg-subtle, #f8f8f8)', borderRadius: 8, direction: 'rtl', fontFamily: 'serif' }}>
+                                    {c.content}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Eşleşen kelimeler */}
                         <div style={{ padding: '1.25rem' }}>
                           <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>
                             Bu Kaynaktan Sözlüğe Eklenen Kelimeler
@@ -185,6 +287,7 @@ export default function ResourcesPage() {
                             </div>
                           )}
                         </div>
+
                       </div>
                     )}
                   </div>
