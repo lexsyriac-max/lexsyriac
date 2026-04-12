@@ -141,7 +141,8 @@ export default function SourcePoolPage() {
 
     const json = await res.json()
     if (json.success) {
-      setMessage(`✓ ${json.matched} kelime eşleştirildi.`)
+      const wordList = json.words ? json.words.join(", ") : ""
+      setMessage(`✓ ${json.matched} kelime eşleştirildi: ${wordList}`)
       await load()
     } else {
       setError(json.error)

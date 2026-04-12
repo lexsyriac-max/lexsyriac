@@ -75,7 +75,8 @@ export async function POST(req: NextRequest) {
       .update({ status: 'done' })
       .eq('id', document_id)
 
-    return NextResponse.json({ success: true, matched: matches.length })
+    const matchedWords = [...new Set(matches.map(m => m.match_text))]
+    return NextResponse.json({ success: true, matched: matches.length, words: matchedWords })
   } catch (err) {
     return NextResponse.json({
       success: false,
