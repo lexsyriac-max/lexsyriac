@@ -58,3 +58,4 @@ function applyRule(word: string, transformation: any, meta: any) {
    */
   return base
 }
+export {}
