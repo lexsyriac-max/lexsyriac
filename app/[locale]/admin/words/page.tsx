@@ -31,6 +31,7 @@ export default function AdminWordsPage() {
 
   // Pending kelime akışı: ?pendingId=xxx ile gelince formu dolu aç
   const pendingId = searchParams.get('pendingId')
+  const syriacParam = searchParams.get('syriac')
   const [pendingWordId, setPendingWordId] = useState<string | null>(null)
 
   const [words, setWords] = useState<Word[]>([])
@@ -143,6 +144,14 @@ export default function AdminWordsPage() {
 
     void loadPending()
   }, [pendingId, supabase])
+  // syriac query param varsa → çözümleme modunda syriac girişiyle formu aç
+  useEffect(() => {
+    if (!syriacParam) return
+    setShowForm(true)
+    setEditingWord(null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [syriacParam])
+
 
   async function handleAdd(payload: AddWordPayload): Promise<{ error: string | null }> {
     const { error } = await addWord(payload)
@@ -172,7 +181,7 @@ export default function AdminWordsPage() {
     payload: AddWordPayload
   ): Promise<{ error: string | null }> {
     // Pending akışından geliyorsa → update değil add yap
-    if (id.startsWith('__pending__')) {
+    if (id.startsWith('__pending__') || id.startsWith('__new__')) {
       return handleAdd(payload)
     }
     const { error } = await updateWord({
@@ -473,6 +482,7 @@ export default function AdminWordsPage() {
         {showForm && (
           <WordForm
             editingWord={editingWord}
+            initialSyriac={syriacParam ? decodeURIComponent(syriacParam) : undefined}
             onAdd={handleAdd}
             onUpdate={handleUpdateFromForm}
             onCancel={() => {

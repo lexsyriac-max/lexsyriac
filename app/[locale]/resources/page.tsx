@@ -30,6 +30,15 @@ type MatchedWord = {
   words: { id: string; turkish: string; syriac: string }
 }
 
+type WordAnalysis = {
+  token: string
+  inDictionary: boolean
+  wordId?: string
+  turkish?: string
+  transliteration?: string
+  root?: string
+}
+
 export default function ResourcesPage() {
   const locale = useLocale()
   const supabase = createClient()
@@ -42,6 +51,9 @@ export default function ResourcesPage() {
   const [wordsLoading, setWordsLoading] = useState<string | null>(null)
   const [fileUrls, setFileUrls] = useState<Record<string, string>>({})
   const [activeTab, setActiveTab] = useState<Record<string, 'original' | 'translation'>>({})
+  const [analysisData, setAnalysisData] = useState<Record<string, WordAnalysis[]>>({})
+  const [analysisLoading, setAnalysisLoading] = useState<string | null>(null)
+  const [showAnalysis, setShowAnalysis] = useState<Record<string, boolean>>({})
 
   useEffect(() => { loadDocs() }, [])
 
@@ -60,29 +72,40 @@ export default function ResourcesPage() {
     if (expandedId === doc.id) { setExpandedId(null); return }
     setExpandedId(doc.id)
 
-    // Dosya URL
     if (!fileUrls[doc.id]) {
       const { data } = supabase.storage.from('source-documents').getPublicUrl(doc.storage_path)
       if (data) setFileUrls(prev => ({ ...prev, [doc.id]: data.publicUrl }))
     }
 
-    if (!wordsByDoc[doc.id]) {
+    if (wordsByDoc[doc.id] !== undefined) return
+    if (true) {
       setWordsLoading(doc.id)
 
-      // Kelimeler
-      const { data: wData } = await supabase
+      const { data: swData } = await supabase
         .from('source_word_index')
-        .select('id, match_text, words ( id, turkish, syriac )')
+        .select('id, match_text, word_id')
         .eq('document_id', doc.id)
 
-      if (wData) {
-        const unique = wData.filter((item, idx, arr) =>
-          arr.findIndex(x => x.match_text === item.match_text) === idx
-        )
-        setWordsByDoc(prev => ({ ...prev, [doc.id]: unique as unknown as MatchedWord[] }))
+      if (swData && swData.length > 0) {
+        const wordIds = [...new Set(swData.map((x: any) => x.word_id))]
+        const { data: wordsData } = await supabase
+          .from('words')
+          .select('id, turkish, syriac')
+          .in('id', wordIds)
+        const wordsMap = new Map((wordsData || []).map((w: any) => [w.id, w]))
+        const merged: MatchedWord[] = swData
+          .filter((item: any, idx: number, arr: any[]) => arr.findIndex((x: any) => x.word_id === item.word_id) === idx)
+          .map((item: any) => ({
+            id: item.id,
+            match_text: item.match_text,
+            words: wordsMap.get(item.word_id) as any,
+          }))
+          .filter((item: any) => item.words)
+        setWordsByDoc(prev => ({ ...prev, [doc.id]: merged }))
+      } else {
+        setWordsByDoc(prev => ({ ...prev, [doc.id]: [] }))
       }
 
-      // Chunk'lar + tercümeler
       const { data: cData } = await supabase
         .from('source_text_chunks')
         .select('id, content, translation_tr, page_number, chunk_index')
@@ -93,6 +116,57 @@ export default function ResourcesPage() {
 
       setWordsLoading(null)
     }
+  }
+
+  function tokenize(text: string): string[] {
+    return text
+      .split(/[\s\u200c\u200d\u060c,\.،؟?!:;\(\)\[\]{}\"\']+/)
+      .map(t => t.trim())
+      .filter(t => t.length > 0)
+  }
+
+  async function handleAnalysis(docId: string) {
+    if (analysisData[docId]) {
+      setShowAnalysis(prev => ({ ...prev, [docId]: !prev[docId] }))
+      return
+    }
+
+    setAnalysisLoading(docId)
+    setShowAnalysis(prev => ({ ...prev, [docId]: true }))
+
+    const chunks = chunksByDoc[docId] || []
+    const allText = chunks.map(c => c.content).join(' ')
+    const tokens = [...new Set(tokenize(allText))]
+
+    const { data: wordsData } = await supabase
+      .from('words')
+      .select('id, syriac, turkish, transliteration, root')
+      .not('syriac', 'is', null)
+
+    const wordMap = new Map<string, { id: string; turkish: string; transliteration: string; root: string | null }>()
+    if (wordsData) {
+      wordsData.forEach(w => {
+        if (w.syriac) wordMap.set(w.syriac.trim(), w)
+      })
+    }
+
+    const analysis: WordAnalysis[] = tokens.map(token => {
+      const match = wordMap.get(token)
+      if (match) {
+        return {
+          token,
+          inDictionary: true,
+          wordId: match.id,
+          turkish: match.turkish,
+          transliteration: match.transliteration,
+          root: match.root ?? undefined,
+        }
+      }
+      return { token, inDictionary: false }
+    })
+
+    setAnalysisData(prev => ({ ...prev, [docId]: analysis }))
+    setAnalysisLoading(null)
   }
 
   function getTab(docId: string): 'original' | 'translation' {
@@ -146,10 +220,13 @@ export default function ResourcesPage() {
                 const isImage = ['jpg', 'jpeg', 'png'].includes(doc.file_type.toLowerCase())
                 const tab = getTab(doc.id)
                 const hasTranslation = chunks.some(c => c.translation_tr)
+                const analysis = analysisData[doc.id] || []
+                const isAnalysisVisible = showAnalysis[doc.id]
+                const inDict = analysis.filter(a => a.inDictionary)
+                const notInDict = analysis.filter(a => !a.inDictionary)
 
                 return (
                   <div key={doc.id} className="card" style={{ overflow: 'hidden' }}>
-                    {/* Başlık */}
                     <div style={{ padding: '1.25rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }} onClick={() => handleExpand(doc)}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <span style={{ fontSize: '1.5rem' }}>{isImage ? '🖼️' : '📄'}</span>
@@ -173,7 +250,6 @@ export default function ResourcesPage() {
                     {isExpanded && (
                       <div style={{ borderTop: '1px solid var(--color-border)' }}>
 
-                        {/* Görsel + İndir */}
                         <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--color-border)' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                             <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -198,10 +274,8 @@ export default function ResourcesPage() {
                           )}
                         </div>
 
-                        {/* Metin + Tercüme */}
                         {chunks.length > 0 && (
                           <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--color-border)' }}>
-                            {/* Tab butonları */}
                             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
                               <button
                                 className={`btn btn-sm ${tab === 'original' ? 'btn-primary' : 'btn-ghost'}`}
@@ -224,7 +298,6 @@ export default function ResourcesPage() {
                               )}
                             </div>
 
-                            {/* İki kolon: orijinal + tercüme */}
                             {tab === 'original' && hasTranslation ? (
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div>
@@ -264,7 +337,97 @@ export default function ResourcesPage() {
                           </div>
                         )}
 
-                        {/* Eşleşen kelimeler */}
+                        {chunks.length > 0 && (
+                          <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--color-border)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                📐 Kelime Kök Analizi
+                              </div>
+                              <button
+                                className="btn btn-sm btn-ghost"
+                                onClick={() => handleAnalysis(doc.id)}
+                                disabled={analysisLoading === doc.id}
+                              >
+                                {analysisLoading === doc.id
+                                  ? 'Analiz ediliyor...'
+                                  : isAnalysisVisible
+                                    ? '▲ Gizle'
+                                    : '🔍 Analiz Et'}
+                              </button>
+                            </div>
+
+                            {isAnalysisVisible && analysis.length > 0 && (
+                              <div>
+                                <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: '0.82rem', padding: '0.25rem 0.75rem', borderRadius: 20, background: '#DCFCE7', color: '#166534', fontWeight: 600 }}>
+                                    ✓ Sözlükte var: {inDict.length}
+                                  </span>
+                                  <span style={{ fontSize: '0.82rem', padding: '0.25rem 0.75rem', borderRadius: 20, background: '#FEF9C3', color: '#854D0E', fontWeight: 600 }}>
+                                    ✗ Sözlükte yok: {notInDict.length}
+                                  </span>
+                                </div>
+
+                                {inDict.length > 0 && (
+                                  <div style={{ marginBottom: '1.25rem' }}>
+                                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>
+                                      Sözlükte Bulunanlar
+                                    </div>
+                                    <div style={{ overflowX: 'auto' }}>
+                                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.87rem' }}>
+                                        <thead>
+                                          <tr style={{ borderBottom: '2px solid #BBF7D0' }}>
+                                            <th style={{ textAlign: 'left', padding: '0.4rem 0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Süryanice</th>
+                                            <th style={{ textAlign: 'left', padding: '0.4rem 0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Türkçe</th>
+                                            <th style={{ textAlign: 'left', padding: '0.4rem 0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Kök</th>
+                                            <th style={{ textAlign: 'left', padding: '0.4rem 0.75rem', color: 'var(--color-text-muted)', fontWeight: 600 }}>Transliterasyon</th>
+                                            <th style={{ padding: '0.4rem 0.75rem' }}></th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {inDict.map((item, i) => (
+                                            <tr key={i} style={{ borderBottom: '1px solid #DCFCE7', background: i % 2 === 0 ? '#F0FDF4' : 'white' }}>
+                                              <td style={{ padding: '0.5rem 0.75rem', fontFamily: 'serif', fontSize: '1rem', direction: 'rtl' }}>{item.token}</td>
+                                              <td style={{ padding: '0.5rem 0.75rem', color: 'var(--color-text)' }}>{item.turkish}</td>
+                                              <td style={{ padding: '0.5rem 0.75rem', fontFamily: 'serif', fontSize: '1rem', direction: 'rtl', color: '#166534' }}>{item.root || '—'}</td>
+                                              <td style={{ padding: '0.5rem 0.75rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>{item.transliteration || '—'}</td>
+                                              <td style={{ padding: '0.5rem 0.75rem' }}>
+                                                <Link href={`/${locale}/dictionary/${item.wordId}`} style={{ fontSize: '0.78rem', color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 600 }}>
+                                                  Sözlükte Gör →
+                                                </Link>
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {notInDict.length > 0 && (
+                                  <div>
+                                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#854D0E', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>
+                                      Sözlükte Bulunmayanlar
+                                    </div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                      {notInDict.map((item, i) => (
+                                        <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.3rem 0.6rem 0.3rem 0.75rem', background: '#FEF9C3', border: '1px solid #FDE047', borderRadius: 20, fontSize: '0.85rem' }}>
+                                          <span style={{ fontFamily: 'serif', direction: 'rtl', color: '#854D0E', fontWeight: 600 }}>{item.token}</span>
+                                          <Link
+                                            href={`/${locale}/admin/words?syriac=${encodeURIComponent(item.token)}`}
+                                            style={{ fontSize: '0.75rem', background: '#F59E0B', color: 'white', padding: '0.1rem 0.45rem', borderRadius: 12, textDecoration: 'none', fontWeight: 700, whiteSpace: 'nowrap' }}
+                                          >
+                                            + Ekle
+                                          </Link>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         <div style={{ padding: '1.25rem' }}>
                           <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>
                             Bu Kaynaktan Sözlüğe Eklenen Kelimeler
@@ -275,12 +438,12 @@ export default function ResourcesPage() {
                             <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>Henüz eşleşen kelime yok.</div>
                           ) : (
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                              {words.map((w) => (
-                                <Link key={w.id} href={`/${locale}/dictionary/${(w.words as any)?.id || '#'}`}
+                              {[...new Map(words.map(w => [w.match_text, w])).values()].map((w) => (
+                                <Link key={w.match_text} href={`/${locale}/dictionary/${(w.words as any)?.id || '#'}`}
                                   style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.75rem', background: '#F0F8FA', border: '1px solid var(--color-border)', borderRadius: 20, fontSize: '0.85rem', color: 'var(--color-primary)', textDecoration: 'none', fontWeight: 600 }}>
-                                  {w.match_text}
-                                  {(w.words as any)?.syriac && (
-                                    <span className="text-syriac" style={{ fontSize: '1rem', color: 'var(--color-text)' }}>{(w.words as any).syriac}</span>
+                                  <span style={{ fontFamily: 'serif', fontSize: '1rem', direction: 'rtl' }}>{w.match_text}</span>
+                                  {(w.words as any)?.turkish && (
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{(w.words as any).turkish}</span>
                                   )}
                                 </Link>
                               ))}

@@ -71,6 +71,26 @@ export async function middleware(request: NextRequest) {
     if (isAdminPage && profile.role !== 'admin') {
       return NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url))
     }
+
+    // Test aşaması: admin olmayan kullanıcıları coming-soon'a yönlendir
+    const isComingSoonPage = pathname.includes('/coming-soon')
+    const isAuthPage = pathname.includes('/auth/')
+    const isLoginPage = pathname.includes('/login')
+
+    if (profile.role !== 'admin' && !isComingSoonPage && !isAuthPage && !isLoginPage) {
+      return NextResponse.redirect(new URL(`/${locale}/coming-soon`, request.url))
+    }
+  }
+
+  // Giriş yapmamış kullanıcılar da coming-soon'a git (login ve coming-soon hariç)
+  if (!user) {
+    const isComingSoonPage = pathname.includes('/coming-soon')
+    const isAuthPage = pathname.includes('/auth/')
+    const isLoginPage = pathname.includes('/login')
+
+    if (!isComingSoonPage && !isAuthPage && !isLoginPage) {
+      return NextResponse.redirect(new URL(`/${locale}/coming-soon`, request.url))
+    }
   }
 
   return response

@@ -16,6 +16,7 @@ interface WordFormProps {
   englishSuggestion?: string
   onTurkishChange?: (val: string) => void
   categories: { id: string; name: string }[]
+  initialSyriac?: string
 }
 
 type ResolveInputType = 'turkish' | 'english' | 'syriac' | 'transliteration'
@@ -229,6 +230,7 @@ export default function WordForm({
   onUpdate,
   onCancel,
   categories,
+  initialSyriac,
 }: WordFormProps) {
   const [formData, setFormData] = useState<FormState>(EMPTY_FORM)
 
@@ -302,6 +304,18 @@ export default function WordForm({
     setShowResolvedForm(true)
     setManualMode(false)
   }, [editingWord])
+
+  useEffect(() => {
+    if (!initialSyriac || editingWord) return
+    setInputLanguage('syriac')
+    setInputValue(initialSyriac)
+  }, [initialSyriac])
+
+  useEffect(() => {
+    if (!initialSyriac || editingWord) return
+    setInputLanguage('syriac')
+    setInputValue(initialSyriac)
+  }, [initialSyriac])
 
   const canResolve = useMemo(() => clean(inputValue).length > 0, [inputValue])
 
