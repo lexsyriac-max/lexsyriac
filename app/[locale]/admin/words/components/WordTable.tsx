@@ -7,6 +7,8 @@ import * as XLSX from 'xlsx'
 import { createClient } from '@/lib/supabase'
 import { Word, TYPE_OPTIONS, EKSIK_OPTIONS } from '@/lib/types/words'
 import DeleteAllButton from './DeleteAllButton'
+import { useRouter } from 'next/navigation'
+import { useLocale } from 'next-intl'
 
 interface Props {
   locale: string

@@ -133,7 +133,6 @@ export default function AdminWordsPage() {
         practice_group: null,
         category_id: null,
         created_at: data.created_at,
-        updated_at: data.updated_at,
       }
 
       setPendingWordId(data.id)

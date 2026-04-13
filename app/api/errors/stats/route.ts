@@ -16,7 +16,7 @@ export async function GET() {
       take: 10,
     });
 
-    const formatted = stats.map((item) => ({
+    const formatted = stats.map((item: any) => ({
       root: item.root,
       error_count: item._count.root,
     }));
