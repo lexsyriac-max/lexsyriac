@@ -360,11 +360,6 @@ export default function GuidePage() {
                 border: '#90CAF9',
               },
               {
-                title: 'RehberLog Entegrasyonu',
-                status: 'Planlama Aşamasında',
-                desc: 'Turist rehberleri için ayrı bir mobil uygulama (React Native + Expo). LexSyriac\'ın dil veritabanını kullanarak tarihi mekan ve eser açıklamalarını çok dilli sunma.',
-                color: '#E8F5E9',
-                border: '#A5D6A7',
               },
               {
                 title: 'Cümle Oluşturucu (Phase 5)',
