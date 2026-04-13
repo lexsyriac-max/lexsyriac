@@ -204,7 +204,7 @@ export default function GuidePage() {
               { step: '4', title: 'Eşleştirme', desc: 'Metindeki her kelime sözlükteki words.syriac alanıyla karşılaştırılır. Eşleşenler bağlanır.' },
               { step: '5', title: 'Kök Analizi', desc: 'Eşleşen kelimeler kök bilgisiyle gösterilir. Eşleşmeyenler "+ Ekle" butonu ile sözlüğe eklenebilir.' },
             ].map(item => (
-              <div key={item.step} style={{ display: 'flex', gap: '1rem', padding: '0.75rem 1rem', background: i => i % 2 === 0 ? '#F0F8FA' : 'white', borderRadius: 10, border: '1px solid var(--color-border)' }}>
+              <div key={item.step} style={{ display: 'flex', gap: '1rem', padding: '0.75rem 1rem', background: '#F0F8FA', borderRadius: 10, border: '1px solid var(--color-border)' }}>
                 <div style={{ background: 'var(--color-primary)', color: 'white', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem', flexShrink: 0 }}>{item.step}</div>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: '0.9rem', marginBottom: '0.2rem' }}>{item.title}</div>
