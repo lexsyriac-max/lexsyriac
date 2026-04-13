@@ -60,6 +60,7 @@ export default function WordTable({
   onFillSyriac,
   filling = false,
 }: Props) {
+  const router = useRouter()
   const supabase = createClient()
 
   const [search, setSearch] = useState('')
