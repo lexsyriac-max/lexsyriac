@@ -7,6 +7,11 @@ import { useState, useRef, useEffect } from 'react'
 interface Props { locale: string }
 
 const NAV_GROUPS = [
+  { label: 'Lex (yeni)', items: [
+    { path: '/admin/lex/madde/yeni', icon: '＋', label: 'Yeni Madde' },
+    { path: '/admin/lex/inceleme', icon: '✓', label: 'İnceleme Kuyruğu' },
+    { path: '/admin/lex', icon: '📖', label: 'Maddeler' },
+  ]},
   { label: 'Kelime', items: [
     { path: '/admin/words', icon: '📝', label: 'Kelime Ekle' },
     { path: '/admin/import', icon: '⬆', label: 'Toplu Yükle' },
@@ -37,7 +42,7 @@ export default function AdminNav({ locale }: Props) {
   const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  const isActive = (path: string) => pathname.includes(path)
+  const isActive = (path: string) => pathname.endsWith(path) || pathname.includes(path + '/')
 
   function handleMouseEnter(label: string) {
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
