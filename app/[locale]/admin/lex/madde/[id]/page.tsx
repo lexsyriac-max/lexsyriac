@@ -101,84 +101,43 @@ export default function LexemeEditPage() {
     if (!skel.value) { setError('Batı veya Doğu harekeli yazımdan en az biri gerekli.'); return }
     if (skel.mismatch) { setError('Batı ve Doğu yazımlarının ünsüz iskeleti farklı.'); return }
     setSaving(true)
-    const db = lexDb()
     try {
-      // 1. Kök: varsa bul, yoksa oluştur
-      let rootId: string | null = null
-      if (rootSkel) {
-        const { data: ex, error: re } = await db.from('root').select('id').eq('radicals', rootSkel).eq('homonym_no', 1).maybeSingle()
-        if (re) throw re
-        if (ex) rootId = ex.id
-        else {
-          const { data: nr, error: ie } = await db.from('root').insert({ radicals: rootSkel }).select('id').single()
-          if (ie) throw ie
-          rootId = nr.id
-        }
-      }
-
-      // 2. Madde
+      // Tek işlem: kök + madde + anlam + karşılık (lex.save_lexeme).
+      // Herhangi bir adımda hata olursa veritabanında hiçbir şey değişmez.
       const payload = {
-        root_id: rootId,
-        lemma_skeleton: skel.value,
-        lemma_west: form.lemma_west.trim() || null,
-        lemma_east: form.lemma_east.trim() || null,
-        transliteration: form.transliteration.trim() || null,
-        pos: form.pos,
-        gender: form.pos === 'verb' ? null : form.gender || null,
-        stem_code: form.pos === 'verb' ? form.stem_code || null : null,
-        variety_code: form.variety_code,
-        homonym_no: form.homonym_no || 1,
-        notes: form.notes.trim() || null,
-        source_note: form.source_note.trim() || null,
+        id: isNew ? null : id,
+        radicals: rootSkel || null,
+        lexeme: {
+          lemma_skeleton: skel.value,
+          lemma_west: form.lemma_west.trim() || null,
+          lemma_east: form.lemma_east.trim() || null,
+          transliteration: form.transliteration.trim() || null,
+          pos: form.pos,
+          gender: form.pos === 'verb' ? null : form.gender || null,
+          stem_code: form.pos === 'verb' ? form.stem_code || null : null,
+          variety_code: form.variety_code,
+          homonym_no: form.homonym_no || 1,
+          notes: form.notes.trim() || null,
+          source_note: form.source_note.trim() || null,
+        },
+        removed,
+        senses: senses.map((s) => ({
+          key: s.key,
+          id: s.id ?? null,
+          definition: s.definition,
+          usage_note: s.usage_note,
+          glosses: LANGS.flatMap((lang) =>
+            splitGloss(s.glosses[lang]).map((text, i) => ({ lang, text, is_primary: i === 0 }))),
+        })),
       }
-      let lexemeId = id
-      if (isNew) {
-        const { data, error: e } = await db.from('lexeme').insert(payload).select('id').single()
-        if (e) throw e
-        lexemeId = data.id
-      } else {
-        const { error: e, count } = await db.from('lexeme').update(payload, { count: 'exact' }).eq('id', id)
-        if (e) throw e
-        if (!count) throw { message: 'Madde güncellenemedi (yetki yok).' }
-      }
-
-      // 3. Silinen anlamlar
-      for (const sid of removed) {
-        const { error: e, count } = await db.from('sense').delete({ count: 'exact' }).eq('id', sid)
-        if (e) throw e
-        if (!count) throw { message: 'Anlam silinemedi: silme yalnız admin yetkisiyle yapılır.' }
-      }
-
-      // 4. Anlamlar ve karşılıklar
-      const inherit: Status = isEditor && (status === 'reviewed' || status === 'published') ? status : 'draft'
-      let nextNo = Math.max(0, ...senses.filter((s) => s.id).map((s) => s.sense_no))
-      const saved: SenseDraft[] = []
-      for (const s of senses) {
-        const hasContent = s.definition.trim() || s.usage_note.trim() || LANGS.some((l) => s.glosses[l].trim())
-        if (!s.id && !hasContent) continue
-        let senseId = s.id
-        let no = s.sense_no
-        const sp = { definition: s.definition.trim() || null, usage_note: s.usage_note.trim() || null }
-        if (senseId) {
-          const { error: e } = await db.from('sense').update(sp).eq('id', senseId)
-          if (e) throw e
-        } else {
-          no = ++nextNo
-          const { data, error: e } = await db.from('sense')
-            .insert({ ...sp, lexeme_id: lexemeId, sense_no: no, status: inherit }).select('id').single()
-          if (e) throw e
-          senseId = data.id
-        }
-        const { error: de } = await db.from('gloss').delete().eq('sense_id', senseId)
-        if (de) throw de
-        const rows = LANGS.flatMap((lang) =>
-          splitGloss(s.glosses[lang]).map((text, i) => ({ sense_id: senseId, lang, text, is_primary: i === 0 })))
-        if (rows.length) {
-          const { error: ge } = await db.from('gloss').insert(rows)
-          if (ge) throw ge
-        }
-        saved.push({ ...s, id: senseId, sense_no: no })
-      }
+      const { data, error: e } = await lexDb().rpc('save_lexeme', { p: payload })
+      if (e) throw e
+      const res = data as { lexeme_id: string; senses: { key: string; id: string; sense_no: number }[] }
+      const lexemeId = res.lexeme_id
+      const byKey = new Map(res.senses.map((r) => [r.key, r]))
+      const saved: SenseDraft[] = senses
+        .filter((s) => byKey.has(s.key))
+        .map((s) => ({ ...s, id: byKey.get(s.key)!.id, sense_no: byKey.get(s.key)!.sense_no }))
 
       setRemoved([])
       setSenses(saved.length ? saved : [blankSense(1)])
