@@ -111,14 +111,10 @@ export function explainError(e: { code?: string; message?: string } | null): str
 
 // Madde durumunu değiştir; anlamlar maddeyle aynı duruma çekilir
 // (yayımlanmamış anlamın çevirileri dışarıdan görünmediği için).
+// Tek işlem: lex.set_lexeme_status — yarım durum değişikliği kalmaz.
 export async function setLexemeStatus(lexemeId: string, status: Status): Promise<string> {
-  const db = lexDb()
-  const { error: se } = await db.from('sense').update({ status }).eq('lexeme_id', lexemeId)
-  if (se) return explainError(se)
-  const { error: le, count } = await db.from('lexeme').update({ status }, { count: 'exact' }).eq('id', lexemeId)
-  if (le) return explainError(le)
-  if (!count) return 'Kayıt güncellenemedi (yetki veya kayıt yok).'
-  return ''
+  const { error } = await lexDb().rpc('set_lexeme_status', { p_id: lexemeId, p_status: status })
+  return error ? explainError(error) : ''
 }
 
 export async function myLexRole(): Promise<'admin' | 'editor' | 'contributor' | null> {
