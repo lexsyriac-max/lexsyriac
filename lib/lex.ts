@@ -123,13 +123,16 @@ export async function setLexemeStatus(lexemeId: string, status: Status): Promise
   return error ? explainError(error) : ''
 }
 
-export async function myLexRole(): Promise<'admin' | 'editor' | 'contributor' | null> {
-  const db = lexDb()
-  for (const r of ['admin', 'editor', 'contributor'] as const) {
-    const { data } = await db.rpc('has_role', { min_role: r })
-    if (data === true) return r
-  }
-  return null
+export type LexRole = 'admin' | 'editor' | 'contributor'
+
+// Kullanıcının kendi lex.user_role satırı (RLS: herkes yalnız kendi rolünü görür).
+export async function myLexRole(): Promise<LexRole | null> {
+  const sb = createClient()
+  const { data: { session } } = await sb.auth.getSession()
+  if (!session) return null
+  const { data } = await sb.schema('lex').from('user_role').select('role')
+    .eq('user_id', session.user.id).maybeSingle()
+  return (data?.role as LexRole | undefined) ?? null
 }
 
 // ---------------------------------------------------------------------
