@@ -1,14 +1,15 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useLocale } from 'next-intl'
 import {
   lexDb, syrSkeleton, explainError, myLexRole, setLexemeStatus,
-  LEXEME_SELECT, POS_LABEL, GENDER_LABEL, LANGS,
+  LEXEME_SELECT, POS_LABEL, GENDER_LABEL, LANGS, STATUS_LABEL,
   type LexemeRow, type Lang, type Status,
 } from '@/lib/lex'
-import { LexNav, StatusBadge, Syr, NoRole } from '../../components'
+import { LexNav, StatusBadge, Syr, NoRole, Field, ui } from '../../components'
 
 type SenseDraft = {
   key: string
@@ -21,7 +22,7 @@ type SenseDraft = {
 
 const EMPTY = {
   radicals: '', lemma_west: '', lemma_east: '', transliteration: '',
-  pos: 'noun', gender: '', stem_code: '', variety_code: 'classical',
+  pos: 'noun', gender: '', stem_code: '', paradigm_class_id: '', variety_code: 'classical',
   homonym_no: 1, notes: '', source_note: '',
 }
 
@@ -45,6 +46,7 @@ export default function LexemeEditPage() {
   const [status, setStatus] = useState<Status>('draft')
   const [stems, setStems] = useState<{ code: string; name: string }[]>([])
   const [varieties, setVarieties] = useState<{ code: string; name_tr: string }[]>([])
+  const [classes, setClasses] = useState<{ id: string; code: string; label: string | null; pos: string; stem_code: string | null; radical_count: number; status: Status }[]>([])
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
@@ -58,6 +60,7 @@ export default function LexemeEditPage() {
     const db = lexDb()
     db.from('verb_stem').select('code,name').order('seq').then(({ data }) => setStems(data ?? []))
     db.from('variety').select('code,name_tr').order('code').then(({ data }) => setVarieties(data ?? []))
+    db.from('paradigm_class').select('id,code,label,pos,stem_code,radical_count,status').order('code').then(({ data }) => setClasses(data ?? []))
   }, [])
 
   useEffect(() => {
@@ -69,7 +72,7 @@ export default function LexemeEditPage() {
       const r = data as unknown as LexemeRow
       setForm({
         radicals: r.root?.radicals ?? '', lemma_west: r.lemma_west ?? '', lemma_east: r.lemma_east ?? '',
-        transliteration: r.transliteration ?? '', pos: r.pos, gender: r.gender ?? '', stem_code: r.stem_code ?? '',
+        transliteration: r.transliteration ?? '', pos: r.pos, gender: r.gender ?? '', stem_code: r.stem_code ?? '', paradigm_class_id: r.paradigm_class_id ?? '',
         variety_code: r.variety_code, homonym_no: r.homonym_no, notes: r.notes ?? '', source_note: r.source_note ?? '',
       })
       setStatus(r.status)
@@ -91,6 +94,10 @@ export default function LexemeEditPage() {
     return { value: w || e, mismatch: !!(w && e && w !== e) }
   }, [form.lemma_west, form.lemma_east])
   const rootSkel = syrSkeleton(form.radicals)
+  // Türe ve fiil kalıbına uyan çekim sınıfları (veritabanı da aynı kuralı uygular)
+  const fitClasses = classes.filter((c) => c.pos === form.pos && (!c.stem_code || c.stem_code === (form.pos === 'verb' ? form.stem_code : '')))
+  const chosenClass = classes.find((c) => c.id === form.paradigm_class_id)
+  const classMismatch = !!form.paradigm_class_id && !fitClasses.some((c) => c.id === form.paradigm_class_id)
 
   const set = <K extends keyof typeof EMPTY>(k: K, v: (typeof EMPTY)[K]) => setForm((f) => ({ ...f, [k]: v }))
   const setSense = (key: string, patch: Partial<SenseDraft>) =>
@@ -100,6 +107,7 @@ export default function LexemeEditPage() {
     setError(''); setMsg('')
     if (!skel.value) { setError('Batı veya Doğu harekeli yazımdan en az biri gerekli.'); return }
     if (skel.mismatch) { setError('Batı ve Doğu yazımlarının ünsüz iskeleti farklı.'); return }
+    if (classMismatch) { setError('Seçili çekim sınıfı maddenin türüne / fiil kalıbına uymuyor.'); return }
     setSaving(true)
     try {
       // Tek işlem: kök + madde + anlam + karşılık (lex.save_lexeme).
@@ -115,6 +123,7 @@ export default function LexemeEditPage() {
           pos: form.pos,
           gender: form.pos === 'verb' ? null : form.gender || null,
           stem_code: form.pos === 'verb' ? form.stem_code || null : null,
+          paradigm_class_id: form.paradigm_class_id || null,
           variety_code: form.variety_code,
           homonym_no: form.homonym_no || 1,
           notes: form.notes.trim() || null,
@@ -223,6 +232,18 @@ export default function LexemeEditPage() {
                   </select>
                 </Field>
               )}
+              <Field label="Çekim sınıfı">
+                <select className="input" value={form.paradigm_class_id} onChange={(e) => set('paradigm_class_id', e.target.value)}
+                  style={classMismatch ? { borderColor: 'var(--color-danger)' } : undefined}>
+                  <option value="">—</option>
+                  {classMismatch && chosenClass && <option value={chosenClass.id}>{chosenClass.code} (uymuyor)</option>}
+                  {fitClasses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.code}{c.label ? ` — ${c.label}` : ''}{c.status !== 'published' ? ` (${STATUS_LABEL[c.status]})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </Field>
               <Field label="Lehçe / dönem">
                 <select className="input" value={form.variety_code} onChange={(e) => set('variety_code', e.target.value)}>
                   {varieties.map((v) => <option key={v.code} value={v.code}>{v.name_tr}</option>)}
@@ -284,6 +305,9 @@ export default function LexemeEditPage() {
 
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <button className="btn btn-primary" onClick={save} disabled={saving || locked || !role}>{saving ? 'Kaydediliyor…' : 'Kaydet'}</button>
+            {!isNew && (
+              <Link href={`/${locale}/admin/lex/madde/${id}/formlar`} className="btn btn-secondary">Çekimli formlar →</Link>
+            )}
             {!isNew && isEditor && (
               <>
                 <span style={{ color: 'var(--color-text-subtle)', margin: '0 0.25rem' }}>|</span>
@@ -305,16 +329,4 @@ export default function LexemeEditPage() {
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-      {label}
-      {children}
-    </label>
-  )
-}
-
-const card: React.CSSProperties = { padding: '1.25rem', marginBottom: '1rem' }
-const h2: React.CSSProperties = { fontSize: '1.1rem', marginTop: 0 }
-const grid: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.75rem' }
-const syrInput: React.CSSProperties = { fontSize: '1.3rem', textAlign: 'right', minHeight: 44 }
+const { card, h2, grid, syrInput } = ui
