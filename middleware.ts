@@ -51,24 +51,47 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(`/${locale}/auth/login`, request.url))
   }
 
+  // Lex ekibi (lex.user_role): /admin/lex bölümüne girer, demo admin
+  // sayfalarına giremez. Demo admin (profiles.role = 'admin') her yere girer.
+  const isLexPage = /^\/(tr|en)\/admin\/lex(\/|$)/.test(pathname)
+
   if (user) {
-    const { data: profile, error } = await supabase
+    const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
-    if (error || !profile) {
-      return NextResponse.redirect(new URL(`/${locale}/auth/login`, request.url))
-    }
-
-    if (profile.role === 'banned') {
+    if (profile?.role === 'banned') {
       return NextResponse.redirect(
         new URL(`/${locale}/auth/login?banned=1`, request.url)
       )
     }
 
-    if (isAdminPage && profile.role !== 'admin') {
+    const isDemoAdmin = profile?.role === 'admin'
+    let lexRole: string | null = null
+    if (!isDemoAdmin) {
+      const { data: lr } = await supabase
+        .schema('lex')
+        .from('user_role')
+        .select('role')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      lexRole = lr?.role ?? null
+    }
+
+    if (!profile && !lexRole) {
+      return NextResponse.redirect(new URL(`/${locale}/auth/login`, request.url))
+    }
+
+    if (!isDemoAdmin && lexRole) {
+      if (isLexPage) return response
+      if (isAdminPage) {
+        return NextResponse.redirect(new URL(`/${locale}/admin/lex`, request.url))
+      }
+    }
+
+    if (isAdminPage && !isDemoAdmin) {
       return NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url))
     }
 
@@ -77,7 +100,7 @@ export async function middleware(request: NextRequest) {
     const isAuthPage = pathname.includes('/auth/')
     const isLoginPage = pathname.includes('/login')
 
-    if (profile.role !== 'admin' && !isComingSoonPage && !isAuthPage && !isLoginPage) {
+    if (!isDemoAdmin && !isComingSoonPage && !isAuthPage && !isLoginPage) {
       return NextResponse.redirect(new URL(`/${locale}/coming-soon`, request.url))
     }
   }
