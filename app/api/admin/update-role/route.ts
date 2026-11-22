@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireDemoAdmin } from '@/lib/requireAdmin'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,6 +8,8 @@ const supabaseAdmin = createClient(
 )
 
 export async function POST(request: Request) {
+  const denied = await requireDemoAdmin()
+  if (denied) return denied
   try {
     const body = await request.json()
     const userId = body.userId as string | undefined
