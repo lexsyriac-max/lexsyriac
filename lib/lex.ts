@@ -277,3 +277,117 @@ export function patternProblem(p: string): string {
   if (!skel) return ''
   return /^(?:[\u0710-\u072F\u074D-\u074F]|C[1-4])+$/.test(skel) ? '' : 'Geçersiz karakter (yalnız Süryanice harf ve C1–C4)'
 }
+
+// ---------------------------------------------------------------------
+// Kategori ağacı ve örnek cümle (005)
+// ---------------------------------------------------------------------
+export type Category = { code: string; name_tr: string; name_en: string; parent: string | null }
+export type CategoryNode = Category & { depth: number; path: string }
+
+// Ağacı derinlik sırasıyla düzleştirir (üst → alt, ada göre). Döngü olsa bile sonlanır.
+export function flattenCategories(cats: Category[]): CategoryNode[] {
+  const byParent = new Map<string | null, Category[]>()
+  const codes = new Set(cats.map((c) => c.code))
+  for (const c of cats) {
+    const p = c.parent && codes.has(c.parent) ? c.parent : null
+    byParent.set(p, [...(byParent.get(p) ?? []), c])
+  }
+  const out: CategoryNode[] = []
+  const seen = new Set<string>()
+  const walk = (parent: string | null, depth: number, path: string) => {
+    for (const c of (byParent.get(parent) ?? []).sort((a, b) => a.name_tr.localeCompare(b.name_tr, 'tr'))) {
+      if (seen.has(c.code)) continue
+      seen.add(c.code)
+      const p = path ? `${path} › ${c.name_tr}` : c.name_tr
+      out.push({ ...c, depth, path: p })
+      walk(c.code, depth + 1, p)
+    }
+  }
+  walk(null, 0, '')
+  return out
+}
+
+// Bir kategorinin kendisi ve bütün alt kategorileri (üst seçiminde döngüyü önlemek için)
+export function categoryDescendants(cats: Category[], code: string): Set<string> {
+  const out = new Set([code])
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const c of cats) if (c.parent && out.has(c.parent) && !out.has(c.code)) { out.add(c.code); grew = true }
+  }
+  return out
+}
+
+export const CATEGORY_CODE_RE = /^[a-z0-9][a-z0-9_-]*$/
+
+export type ExampleRow = {
+  id: string
+  text_skeleton: string
+  text_west: string | null
+  text_east: string | null
+  transliteration: string | null
+  is_constructed: boolean
+  source_work_id: string | null
+  locus: string | null
+  source_note: string | null
+  status: Status
+  updated_at: string
+  example_translation: { lang: Lang; text: string }[]
+  example_sense: { sense_id: string }[]
+}
+export const EXAMPLE_SELECT =
+  'id,text_skeleton,text_west,text_east,transliteration,is_constructed,source_work_id,locus,source_note,status,updated_at,' +
+  'example_translation(lang,text),example_sense(sense_id)'
+
+// Maddenin anlamlarına bağlı örnekler
+export async function fetchExamplesForSenses(senseIds: string[]): Promise<{ rows: ExampleRow[]; error: string }> {
+  if (!senseIds.length) return { rows: [], error: '' }
+  const db = lexDb()
+  const { data: links, error: le } = await db.from('example_sense').select('example_id').in('sense_id', senseIds)
+  if (le) return { rows: [], error: explainError(le) }
+  const ids = Array.from(new Set((links ?? []).map((l) => l.example_id as string)))
+  if (!ids.length) return { rows: [], error: '' }
+  const { data, error } = await db.from('example').select(EXAMPLE_SELECT).in('id', ids).order('created_at')
+  return { rows: (data ?? []) as unknown as ExampleRow[], error: error ? explainError(error) : '' }
+}
+
+export type ExampleDraft = {
+  id?: string
+  text_west: string
+  text_east: string
+  transliteration: string
+  is_constructed: boolean
+  source_work_id: string
+  locus: string
+  source_note: string
+  translations: Record<Lang, string>
+  sense_ids: string[]
+}
+
+// Tek işlem: örnek + çeviriler + bu maddenin anlamlarıyla bağlantı (lex.save_example)
+export async function saveExample(lexemeId: string, d: ExampleDraft): Promise<{ id?: string; error: string }> {
+  const w = syrSkeleton(d.text_west), e = syrSkeleton(d.text_east)
+  if (!w && !e) return { error: 'Batı veya Doğu harekeli metinden en az biri gerekli.' }
+  if (w && e && w !== e) return { error: 'Batı ve Doğu metinlerinin ünsüz iskeleti farklı.' }
+  if (!d.sense_ids.length) return { error: 'En az bir anlam seçin.' }
+  const { data, error } = await lexDb().rpc('save_example', {
+    p: {
+      id: d.id ?? null,
+      lexeme_id: lexemeId,
+      sense_ids: d.sense_ids,
+      example: {
+        text_skeleton: w || e,
+        text_west: d.text_west.trim() || null,
+        text_east: d.text_east.trim() || null,
+        transliteration: d.transliteration.trim() || null,
+        is_constructed: d.is_constructed,
+        source_work_id: d.source_work_id || null,
+        locus: d.locus.trim() || null,
+        source_note: d.source_note.trim() || null,
+      },
+      translations: d.translations,
+    },
+  })
+  if (error) return { error: explainError(error) }
+  return { id: (data as { example_id: string }).example_id, error: '' }
+}
