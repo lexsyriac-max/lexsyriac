@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useRef, useEffect } from 'react'
+import { createClient } from '@/lib/supabase'
 
 interface Props { locale: string }
 
@@ -11,6 +12,7 @@ const NAV_GROUPS = [
     { path: '/admin/lex/madde/yeni', icon: '＋', label: 'Yeni Madde' },
     { path: '/admin/lex/inceleme', icon: '✓', label: 'İnceleme Kuyruğu' },
     { path: '/admin/lex', icon: '📖', label: 'Maddeler' },
+    { path: '/admin/lex/paradigma', icon: '⚙️', label: 'Çekim Sınıfları' },
   ]},
   { label: 'Kelime', items: [
     { path: '/admin/words', icon: '📝', label: 'Kelime Ekle' },
@@ -41,6 +43,23 @@ export default function AdminNav({ locale }: Props) {
   const [dropdownLeft, setDropdownLeft] = useState(0)
   const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  // Demo admin bütün grupları görür; yalnız lex ekibinde olan hesap sadece Lex grubunu.
+  const [isDemoAdmin, setIsDemoAdmin] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    const apply = (v: boolean) => { if (alive) setIsDemoAdmin(v) }
+    const sb = createClient()
+    sb.auth.getSession()
+      .then(({ data: { session } }) => session
+        ? sb.from('profiles').select('role').eq('id', session.user.id).maybeSingle()
+            .then(({ data }) => data?.role === 'admin')
+        : false)
+      .then(apply)
+    return () => { alive = false }
+  }, [])
+
+  const groups = isDemoAdmin ? NAV_GROUPS : NAV_GROUPS.slice(0, 1)
 
   const isActive = (path: string) => pathname.endsWith(path) || pathname.includes(path + '/')
 
@@ -64,7 +83,7 @@ export default function AdminNav({ locale }: Props) {
 
   useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }, [])
 
-  const currentGroup = NAV_GROUPS.find(g => g.label === openGroup)
+  const currentGroup = groups.find(g => g.label === openGroup)
 
   return (
     <nav style={{ background: '#0F3D47', borderBottom: '1px solid rgba(255,255,255,0.1)', position: 'sticky', top: 0, zIndex: 1000 }}>
@@ -80,7 +99,7 @@ export default function AdminNav({ locale }: Props) {
         </Link>
         <span style={{ color: 'rgba(255,255,255,0.2)', flexShrink: 0 }}>|</span>
 
-        {NAV_GROUPS.map(group => {
+        {groups.map(group => {
           const hasActive = group.items.some(item => isActive(item.path))
           const isOpen = openGroup === group.label
           return (
