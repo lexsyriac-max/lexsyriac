@@ -58,26 +58,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: 'Kullanıcı bilgisi alınamadı.' }
       }
 
-      const { data: profile, error: profileError } = await supabase
+      const { data: profile } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', signedInUser.id)
-        .single()
+        .maybeSingle()
 
-      if (profileError || !profile) {
-        await supabase.auth.signOut()
-        return { error: 'Kullanıcı profili bulunamadı.' }
-      }
-
-      if (profile.role === 'banned') {
+      if (profile?.role === 'banned') {
         await supabase.auth.signOut()
         return { error: 'Bu hesap engellenmiştir.' }
       }
 
+      const { data: lexRole } = await supabase
+        .schema('lex')
+        .from('user_role')
+        .select('role')
+        .eq('user_id', signedInUser.id)
+        .maybeSingle()
+
+      if (!profile && !lexRole) {
+        await supabase.auth.signOut()
+        return { error: 'Kullanıcı profili bulunamadı.' }
+      }
+
       router.refresh()
 
-      if (profile.role === 'admin') {
+      if (profile?.role === 'admin') {
         router.replace(`/${locale}/admin`)
+      } else if (lexRole) {
+        router.replace(`/${locale}/admin/lex`)
       } else {
         router.replace(`/${locale}/dashboard`)
       }
