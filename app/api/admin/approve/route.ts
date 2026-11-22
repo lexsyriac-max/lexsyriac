@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireDemoAdmin } from '@/lib/requireAdmin'
 
 function getAdminClient() {
   return createClient(
@@ -230,6 +231,8 @@ async function approveSentence(sb: ReturnType<typeof getAdminClient>, s: any) {
 }
 
 export async function POST(req: NextRequest) {
+  const denied = await requireDemoAdmin()
+  if (denied) return denied
   try {
     const body = await req.json()
     const { type, item } = body
