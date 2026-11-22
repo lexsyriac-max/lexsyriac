@@ -7,9 +7,11 @@ import { useLocale } from 'next-intl'
 import {
   lexDb, syrSkeleton, explainError, myLexRole, setLexemeStatus,
   LEXEME_SELECT, POS_LABEL, GENDER_LABEL, LANGS, STATUS_LABEL,
-  type LexemeRow, type Lang, type Status,
+  type LexemeRow, type Lang, type Status, type Category,
 } from '@/lib/lex'
 import { LexNav, StatusBadge, Syr, NoRole, Field, ui } from '../../components'
+import { SenseCategories } from './SenseCategories'
+import { Examples } from './Examples'
 
 type SenseDraft = {
   key: string
@@ -46,6 +48,7 @@ export default function LexemeEditPage() {
   const [status, setStatus] = useState<Status>('draft')
   const [stems, setStems] = useState<{ code: string; name: string }[]>([])
   const [varieties, setVarieties] = useState<{ code: string; name_tr: string }[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [classes, setClasses] = useState<{ id: string; code: string; label: string | null; pos: string; stem_code: string | null; radical_count: number; status: Status }[]>([])
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
@@ -61,6 +64,7 @@ export default function LexemeEditPage() {
     db.from('verb_stem').select('code,name').order('seq').then(({ data }) => setStems(data ?? []))
     db.from('variety').select('code,name_tr').order('code').then(({ data }) => setVarieties(data ?? []))
     db.from('paradigm_class').select('id,code,label,pos,stem_code,radical_count,status').order('code').then(({ data }) => setClasses(data ?? []))
+    db.from('category').select('code,name_tr,name_en,parent').then(({ data }) => setCategories(data ?? []))
   }, [])
 
   useEffect(() => {
@@ -294,6 +298,7 @@ export default function LexemeEditPage() {
                     <textarea className="input" rows={2} value={s.usage_note} onChange={(e) => setSense(s.key, { usage_note: e.target.value })} />
                   </Field>
                 </div>
+                {s.id && role && <SenseCategories senseId={s.id} categories={categories} locked={locked} />}
               </div>
             ))}
             <button type="button" className="btn btn-sm btn-secondary" style={{ marginTop: '1rem' }}
@@ -323,6 +328,16 @@ export default function LexemeEditPage() {
               </button>
             )}
           </div>
+          <div style={{ marginTop: '1.5rem' }} />
+          {!isNew && (
+            <Examples
+              lexemeId={id}
+              role={role ?? null}
+              senses={senses.filter((x) => x.id).map((x) => ({
+                id: x.id!, sense_no: x.sense_no, label: splitGloss(x.glosses.tr)[0] ?? splitGloss(x.glosses.en)[0] ?? '',
+              }))}
+            />
+          )}
         </>
       )}
     </main>
