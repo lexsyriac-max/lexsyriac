@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireDemoAdmin } from '@/lib/requireAdmin'
 
 // Geçerli Süryanice mi kontrol et
 function isValidSyriac(s: string | null | undefined): boolean {
@@ -9,6 +10,8 @@ function isValidSyriac(s: string | null | undefined): boolean {
 }
 
 export async function POST() {
+  const denied = await requireDemoAdmin()
+  if (denied) return denied
   const sb = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
