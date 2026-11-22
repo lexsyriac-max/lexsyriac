@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireDemoAdmin } from '@/lib/requireAdmin'
 
 export async function POST(req: NextRequest) {
+  const denied = await requireDemoAdmin()
+  if (denied) return denied
   try {
     const { userId } = await req.json()
 
