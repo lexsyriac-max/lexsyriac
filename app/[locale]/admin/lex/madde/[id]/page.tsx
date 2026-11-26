@@ -12,6 +12,7 @@ import {
 import { LexNav, StatusBadge, Syr, NoRole, Field, ui } from '../../components'
 import { SenseCategories } from './SenseCategories'
 import { Examples } from './Examples'
+import { Dictionaries } from './Dictionaries'
 
 type SenseDraft = {
   key: string
@@ -55,6 +56,7 @@ export default function LexemeEditPage() {
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [savedSkeleton, setSavedSkeleton] = useState('')
 
   const isEditor = role === 'editor' || role === 'admin'
 
@@ -80,6 +82,7 @@ export default function LexemeEditPage() {
         variety_code: r.variety_code, homonym_no: r.homonym_no, notes: r.notes ?? '', source_note: r.source_note ?? '',
       })
       setStatus(r.status)
+      setSavedSkeleton(r.lemma_skeleton)
       const ss = [...r.sense].sort((a, b) => a.sense_no - b.sense_no).map((s) => {
         const gl: Record<Lang, string> = { tr: '', en: '', de: '' }
         for (const l of LANGS) {
@@ -153,6 +156,7 @@ export default function LexemeEditPage() {
         .map((s) => ({ ...s, id: byKey.get(s.key)!.id, sense_no: byKey.get(s.key)!.sense_no }))
 
       setRemoved([])
+      setSavedSkeleton(skel.value)
       setSenses(saved.length ? saved : [blankSense(1)])
       setMsg('Kaydedildi.')
       if (isNew) router.replace(`/${locale}/admin/lex/madde/${lexemeId}`)
@@ -178,6 +182,9 @@ export default function LexemeEditPage() {
   }
 
   const locked = !isNew && !isEditor && (status === 'reviewed' || status === 'published')
+  const senseRefs = senses.filter((x) => x.id).map((x) => ({
+    id: x.id!, sense_no: x.sense_no, label: splitGloss(x.glosses.tr)[0] ?? splitGloss(x.glosses.en)[0] ?? '',
+  }))
 
   return (
     <main className="container" style={{ padding: '1.5rem 0 3rem', maxWidth: 960 }}>
@@ -330,13 +337,10 @@ export default function LexemeEditPage() {
           </div>
           <div style={{ marginTop: '1.5rem' }} />
           {!isNew && (
-            <Examples
-              lexemeId={id}
-              role={role ?? null}
-              senses={senses.filter((x) => x.id).map((x) => ({
-                id: x.id!, sense_no: x.sense_no, label: splitGloss(x.glosses.tr)[0] ?? splitGloss(x.glosses.en)[0] ?? '',
-              }))}
-            />
+            <>
+              <Examples lexemeId={id} role={role ?? null} senses={senseRefs} />
+              <Dictionaries lexemeId={id} skeleton={savedSkeleton} senses={senseRefs} role={role ?? null} locale={locale} />
+            </>
           )}
         </>
       )}
