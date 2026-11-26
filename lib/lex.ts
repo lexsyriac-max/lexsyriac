@@ -391,3 +391,186 @@ export async function saveExample(lexemeId: string, d: ExampleDraft): Promise<{ 
   if (error) return { error: explainError(error) }
   return { id: (data as { example_id: string }).example_id, error: '' }
 }
+
+// ---------------------------------------------------------------------
+// Kaynaklar (006): eser, sayfa görseli, basılı sözlük maddesi
+// ---------------------------------------------------------------------
+export type SourceKind = 'dictionary' | 'grammar' | 'manuscript' | 'printed_text' | 'corpus' | 'course_material'
+export type LicenseKind = 'public_domain' | 'open_license' | 'permission_granted' | 'licensed_restricted' | 'unknown'
+
+export const SOURCE_KIND_LABEL: Record<SourceKind, string> = {
+  dictionary: 'Sözlük',
+  grammar: 'Dilbilgisi',
+  manuscript: 'El yazması',
+  printed_text: 'Basılı metin',
+  corpus: 'Derlem',
+  course_material: 'Ders materyali',
+}
+export const LICENSE_LABEL: Record<LicenseKind, string> = {
+  public_domain: 'Kamu malı',
+  open_license: 'Açık lisans',
+  permission_granted: 'İzin alındı',
+  licensed_restricted: 'Lisanslı (kısıtlı)',
+  unknown: 'Bilinmiyor',
+}
+// Bu lisanslarda yayımlanmış sayfa görseli ziyaretçiye açılır (lex.page_image_public)
+export const OPEN_LICENSES: LicenseKind[] = ['public_domain', 'open_license', 'permission_granted']
+export const SCRIPT_LABEL: Record<string, string> = {
+  estrangelo: 'Estrangelo',
+  serto: 'Serto',
+  east: 'Doğu (Madnhaya)',
+  mixed: 'Karışık',
+}
+export const SIGLUM_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/
+
+export type SourceWork = {
+  id: string
+  kind: SourceKind
+  siglum: string | null
+  title: string
+  author: string | null
+  editor: string | null
+  year_text: string | null
+  edition: string | null
+  publisher: string | null
+  library: string | null
+  shelfmark: string | null
+  script: string | null
+  variety_code: string | null
+  license: LicenseKind
+  license_note: string | null
+  iiif_manifest: string | null
+  notes: string | null
+  source_note: string | null
+  status: Status
+  updated_at: string
+}
+export const SOURCE_SELECT =
+  'id,kind,siglum,title,author,editor,year_text,edition,publisher,library,shelfmark,script,variety_code,' +
+  'license,license_note,iiif_manifest,notes,source_note,status,updated_at'
+
+export type PageRow = {
+  id: string
+  source_work_id: string
+  seq: number
+  label: string | null
+  volume: string | null
+  image_path: string | null
+  width_px: number | null
+  height_px: number | null
+  status: Status
+}
+export const PAGE_SELECT = 'id,source_work_id,seq,label,volume,image_path,width_px,height_px,status'
+
+export type DictEntryRow = {
+  id: string
+  source_work_id: string
+  page_id: string | null
+  locus: string | null
+  headword_raw: string
+  headword_skeleton: string | null
+  entry_text_raw: string | null
+  lexeme_id: string | null
+  sense_id: string | null
+  source_note: string | null
+  status: Status
+  updated_at: string
+  lexeme: { id: string; lemma_west: string | null; lemma_east: string | null; lemma_skeleton: string; pos: string } | null
+}
+export const DICT_ENTRY_SELECT =
+  'id,source_work_id,page_id,locus,headword_raw,headword_skeleton,entry_text_raw,lexeme_id,sense_id,source_note,status,updated_at,' +
+  'lexeme:lexeme_id(id,lemma_west,lemma_east,lemma_skeleton,pos)'
+
+export const PAGES_BUCKET = 'lex-pages'
+export const PAGE_MIME = ['image/jpeg', 'image/png', 'image/webp']
+export const PAGE_MAX_BYTES = 25 * 1024 * 1024
+
+// Eser + bütün sayfaları aynı duruma (tek işlem: lex.set_source_status)
+export async function setSourceStatus(id: string, status: Status): Promise<string> {
+  const { error } = await lexDb().rpc('set_source_status', { p_id: id, p_status: status })
+  return error ? explainError(error) : ''
+}
+
+// Kova gizli: görseller süreli imzalı adresle açılır (1 saat)
+export async function signedPageUrls(paths: string[]): Promise<Record<string, string>> {
+  const uniq = Array.from(new Set(paths.filter(Boolean)))
+  if (!uniq.length) return {}
+  const { data } = await createClient().storage.from(PAGES_BUCKET).createSignedUrls(uniq, 3600)
+  const out: Record<string, string> = {}
+  for (const d of data ?? []) if (d.path && d.signedUrl) out[d.path] = d.signedUrl
+  return out
+}
+
+function extOf(f: File): string {
+  if (f.type === 'image/png') return 'png'
+  if (f.type === 'image/webp') return 'webp'
+  return 'jpg'
+}
+
+async function imageSize(f: File): Promise<{ w: number | null; h: number | null }> {
+  try {
+    const b = await createImageBitmap(f)
+    const r = { w: b.width, h: b.height }
+    b.close()
+    return r
+  } catch {
+    return { w: null, h: null }
+  }
+}
+
+// Görseli <eser id>/<sayfa id>.<uzantı> yoluna yükler (aynı yol varsa üzerine yazar)
+export async function uploadPageImage(workId: string, pageId: string, f: File) {
+  if (!PAGE_MIME.includes(f.type)) return { error: `${f.name}: yalnız JPEG, PNG veya WebP` }
+  if (f.size > PAGE_MAX_BYTES) return { error: `${f.name}: 25 MB sınırını aşıyor` }
+  const path = `${workId}/${pageId}.${extOf(f)}`
+  const { error } = await createClient().storage.from(PAGES_BUCKET)
+    .upload(path, f, { contentType: f.type, upsert: true, cacheControl: '3600' })
+  if (error) return { error: `${f.name}: ${error.message}` }
+  const size = await imageSize(f)
+  return { path, width: size.w, height: size.h, error: '' }
+}
+
+// Yeni sayfa: önce görsel, sonra satır. Sıra çakışırsa bir sonraki sıra denenir.
+export async function addPage(workId: string, seq: number, f: File, label: string): Promise<{ page?: PageRow; error: string }> {
+  const id = crypto.randomUUID()
+  const up = await uploadPageImage(workId, id, f)
+  if (up.error) return { error: up.error }
+  for (let s = seq; s < seq + 20; s++) {
+    const { data, error } = await lexDb().from('page').insert({
+      id, source_work_id: workId, seq: s, label: label || null,
+      image_path: up.path, width_px: up.width, height_px: up.height,
+    }).select(PAGE_SELECT).single()
+    if (!error) return { page: data as unknown as PageRow, error: '' }
+    if (error.code !== '23505') return { error: `${f.name}: ${explainError(error)}` }
+  }
+  return { error: `${f.name}: sayfa sırası bulunamadı` }
+}
+
+// Dosya adlarını insan sırasıyla diz (s2 < s10)
+export function naturalSort(files: File[]): File[] {
+  const c = new Intl.Collator('tr', { numeric: true, sensitivity: 'base' })
+  return [...files].sort((a, b) => c.compare(a.name, b.name))
+}
+
+export function sourceLabel(s: { siglum: string | null; title: string }): string {
+  return s.siglum ? `${s.siglum} — ${s.title}` : s.title
+}
+
+export function pageLabel(p: { seq: number; label: string | null }): string {
+  return p.label ? `${p.seq} · ${p.label}` : `${p.seq}`
+}
+
+// Kaynak ekranları için hata açıklaması (kısıt adlarına göre)
+export function sourceError(e: { code?: string; message?: string } | null): string {
+  if (!e) return ''
+  const m = e.message ?? ''
+  if (e.code === '23505' && /siglum/.test(m)) return 'Bu kısa ad (siglum) başka bir eserde kullanılıyor.'
+  if (e.code === '23505' && /seq/.test(m)) return 'Bu sayfa sırası bu eserde zaten var.'
+  if (/siglum_format/.test(m)) return 'Kısa ad harf veya rakamla başlamalı; yalnız harf, rakam, nokta, - ve _ içerebilir (ör. PS, SFERMELE).'
+  if (/title_nonblank/.test(m)) return 'Başlık gerekli.'
+  if (/headword_nonblank/.test(m)) return 'Başlık kelimesi gerekli.'
+  if (/page_seq_positive/.test(m)) return 'Sayfa sırası 1 veya daha büyük olmalı.'
+  if (/page_image_in_work/.test(m)) return 'Görsel yolu bu esere ait değil.'
+  if (e.code === '23503' && /source_work/.test(m)) return 'Bu esere bağlı örnek cümle var; önce onları başka esere taşıyın veya kaynağını kaldırın.'
+  return explainError(e)
+}
