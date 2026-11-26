@@ -39,6 +39,7 @@ export function LexNav({ locale, role }: { locale: string; role: string | null }
     { href: `/${locale}/admin/lex/inceleme`, label: 'İnceleme kuyruğu' },
     { href: `/${locale}/admin/lex/paradigma`, label: 'Çekim sınıfları' },
     { href: `/${locale}/admin/lex/kategori`, label: 'Kategoriler' },
+    { href: `/${locale}/admin/lex/kaynak`, label: 'Kaynaklar' },
     ...(role === 'admin' ? [{ href: `/${locale}/admin/lex/ekip`, label: 'Ekip' }] : []),
   ]
   return (
