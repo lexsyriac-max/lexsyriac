@@ -12,11 +12,11 @@ const TEXT_FIELDS = [
   'license_note', 'iiif_manifest', 'notes', 'source_note',
 ] as const
 type Draft = Record<(typeof TEXT_FIELDS)[number], string> & {
-  kind: SourceKind; script: string; variety_code: string; license: LicenseKind
+  kind: SourceKind; script: string; variety_code: string; license: LicenseKind; images_public: boolean
 }
 
 function toDraft(s: SourceWork): Draft {
-  const d = { kind: s.kind, script: s.script ?? '', variety_code: s.variety_code ?? '', license: s.license } as Draft
+  const d = { kind: s.kind, script: s.script ?? '', variety_code: s.variety_code ?? '', license: s.license, images_public: s.images_public } as Draft
   for (const k of TEXT_FIELDS) d[k] = (s[k] as string | null) ?? ''
   return d
 }
@@ -41,8 +41,9 @@ export function SourceForm({ source, varieties, locked, onSaved }: {
     if (d.siglum.trim() && !SIGLUM_RE.test(d.siglum.trim())) {
       setError('Kısa ad yalnız harf, rakam, nokta, - ve _ içerebilir.'); return
     }
-    const row: Record<string, string | null> = {
+    const row: Record<string, string | boolean | null> = {
       kind: d.kind, script: d.script || null, variety_code: d.variety_code || null, license: d.license,
+      images_public: d.images_public,
     }
     for (const k of TEXT_FIELDS) row[k] = d[k].trim() || null
     setBusy(true)
@@ -100,10 +101,16 @@ export function SourceForm({ source, varieties, locked, onSaved }: {
         {input('iiif_manifest', 'IIIF manifest adresi (varsa)')}
       </div>
       <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted)', margin: '0.5rem 0 0' }}>
-        {OPEN_LICENSES.includes(d.license)
+        {OPEN_LICENSES.includes(d.license) || d.images_public
           ? 'Eser yayımlanınca sayfa görselleri ziyaretçilere açılır.'
           : 'Bu lisansla sayfa görselleri yalnız ekibe görünür; yayımlanmış sözlük maddelerinin metni yine görünür.'}
       </p>
+      {!OPEN_LICENSES.includes(d.license) && (
+        <label style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', fontSize: '0.85rem', marginTop: '0.4rem' }}>
+          <input type="checkbox" checked={d.images_public} disabled={locked} onChange={(e) => set('images_public', e.target.checked)} />
+          Görselleri lisanstan bağımsız ziyaretçiye aç (demo dönemi; site halka açılmadan önce gözden geçirilmeli)
+        </label>
+      )}
       <div style={{ ...ui.grid, marginTop: '0.75rem' }}>
         <Field label="Not">
           <textarea className="input" rows={2} value={d.notes} disabled={locked} onChange={(e) => set('notes', e.target.value)} />
