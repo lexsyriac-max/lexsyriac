@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useLocale } from 'next-intl'
@@ -10,6 +10,7 @@ import {
   type PreviewRow, type Status, type VerbForm, type Person, type GramNumber, type Gender, type GramState,
 } from '@/lib/lex'
 import { LexNav, StatusBadge, Syr, NoRole, MatchBadge, Field, ui } from '../../../components'
+import { MediaPanel } from '../../../Media'
 
 type Lexeme = {
   id: string
@@ -71,6 +72,8 @@ export default function LexemeFormsPage() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
+  const [mediaOpen, setMediaOpen] = useState<string | null>(null)
+  const [mediaCount, setMediaCount] = useState<Record<string, number>>({})
 
   const isEditor = role === 'editor' || role === 'admin'
 
@@ -151,6 +154,21 @@ export default function LexemeFormsPage() {
 
   const counts = (preview ?? []).reduce<Record<string, number>>((a, r) => ({ ...a, [r.match]: (a[r.match] ?? 0) + 1 }), {})
   const formCount = (preview ?? []).filter((r) => r.form_id).length + affixed.length
+  const formIdsKey = [...(preview ?? []).map((r) => r.form_id), ...affixed.map((f) => f.id)].filter(Boolean).join(',')
+  const applyCounts = useCallback(({ data }: { data: { word_form_id: string | null }[] | null }) => {
+    const c: Record<string, number> = {}
+    for (const m of data ?? []) if (m.word_form_id) c[m.word_form_id] = (c[m.word_form_id] ?? 0) + 1
+    setMediaCount(c)
+  }, [])
+  useEffect(() => {
+    if (!formIdsKey) return
+    lexDb().from('media').select('word_form_id').in('word_form_id', formIdsKey.split(',')).then(applyCounts)
+  }, [formIdsKey, mediaOpen, applyCounts])
+  const mediaBtn = (fid: string) => (
+    <button className="btn btn-sm btn-ghost" title="Ses / görsel" onClick={() => setMediaOpen((x) => (x === fid ? null : fid))}>
+      {'\u{1F50A}'}{mediaCount[fid] ? ` ${mediaCount[fid]}` : ''}
+    </button>
+  )
   const isVerb = lex?.pos === 'verb'
 
   return (
@@ -207,7 +225,8 @@ export default function LexemeFormsPage() {
                     {preview.map((r, i) => {
                       const ed = r.form_id ? edits[r.form_id] : undefined
                       return (
-                        <tr key={r.form_id ?? r.cell_id ?? i}>
+                        <Fragment key={r.form_id ?? r.cell_id ?? i}>
+                        <tr>
                           <td style={{ ...ui.td, whiteSpace: 'nowrap', fontSize: '0.85rem' }}>{cellLabel(r)}</td>
                           <td style={ui.td}><Syr size="1.2rem">{r.gen_west || r.gen_east || r.gen_skeleton || '—'}</Syr></td>
                           {ed ? (
@@ -240,6 +259,7 @@ export default function LexemeFormsPage() {
                                 {(r.match === 'differs' || r.match === 'differs_vowel') && (
                                   <button className="btn btn-sm btn-ghost" disabled={busy} onClick={() => takeEngine(r)}>Motorunkini al</button>
                                 )}
+                                {mediaBtn(r.form_id!)}
                                 {role === 'admin' && (
                                   <button className="btn btn-sm btn-ghost" style={{ color: 'var(--color-danger)' }} disabled={busy} onClick={() => deleteForm(r.form_id!)}>Sil</button>
                                 )}
@@ -247,6 +267,12 @@ export default function LexemeFormsPage() {
                             ))}
                           </td>
                         </tr>
+                        {r.form_id && mediaOpen === r.form_id && (
+                          <tr><td colSpan={7} style={{ ...ui.td, background: 'var(--color-bg-subtle)' }}>
+                            <MediaPanel target={{ field: 'word_form_id', id: r.form_id }} role={role ?? null} compact />
+                          </td></tr>
+                        )}
+                        </Fragment>
                       )
                     })}
                   </tbody>
@@ -261,7 +287,8 @@ export default function LexemeFormsPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <tbody>
                   {affixed.map((f) => (
-                    <tr key={f.id}>
+                    <Fragment key={f.id}>
+                    <tr>
                       <td style={{ ...ui.td, fontSize: '0.85rem' }}>
                         {cellLabel(f)}
                         {(f.suffix_person || f.suffix_number || f.suffix_gender) && <> · ek: {cellLabel({ verb_form: null, state: null, person: f.suffix_person, number: f.suffix_number, gender: f.suffix_gender })}</>}
@@ -269,8 +296,17 @@ export default function LexemeFormsPage() {
                       </td>
                       <td style={ui.td}><Syr size="1.2rem">{f.form_west || f.form_east || f.form_skeleton}</Syr></td>
                       <td style={ui.td}><StatusBadge status={f.status} /></td>
-                      <td style={ui.td}>{role === 'admin' && <button className="btn btn-sm btn-ghost" style={{ color: 'var(--color-danger)' }} disabled={busy} onClick={() => deleteForm(f.id)}>Sil</button>}</td>
+                      <td style={{ ...ui.td, whiteSpace: 'nowrap' }}>
+                        {role && mediaBtn(f.id)}
+                        {role === 'admin' && <button className="btn btn-sm btn-ghost" style={{ color: 'var(--color-danger)' }} disabled={busy} onClick={() => deleteForm(f.id)}>Sil</button>}
+                      </td>
                     </tr>
+                    {mediaOpen === f.id && (
+                      <tr><td colSpan={4} style={{ ...ui.td, background: 'var(--color-bg-subtle)' }}>
+                        <MediaPanel target={{ field: 'word_form_id', id: f.id }} role={role ?? null} compact />
+                      </td></tr>
+                    )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
