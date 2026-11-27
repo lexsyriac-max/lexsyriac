@@ -9,6 +9,7 @@ import {
   type SourceKind, type LicenseKind, type Status,
 } from '@/lib/lex'
 import { LexNav, NoRole, StatusBadge, Field, ui } from '../components'
+import { OrphanFiles } from '../OrphanFiles'
 
 type Row = {
   id: string; kind: SourceKind; siglum: string | null; title: string; author: string | null
@@ -137,6 +138,7 @@ export default function SourceListPage() {
         )}
       </div>
       {!role && error && <p style={{ color: 'var(--color-danger)' }}>{error}</p>}
+      {role === 'admin' && <OrphanFiles />}
     </main>
   )
 }
