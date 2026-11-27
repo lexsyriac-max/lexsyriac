@@ -1,5 +1,13 @@
 import { createClient } from '@/lib/supabase'
+import { createClient as createServiceClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { requireDemoAdmin } from '@/lib/requireAdmin'
+
+// Yazma işlemleri (POST/PUT/DELETE) yalnız demo admin; tablo RLS ile korunduğu için
+// servis anahtarıyla yazılır. Okuma (GET) herkese açık kalır.
+function adminDb() {
+  return createServiceClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
+}
 
 /**
  * GRAMMAR RULES API v2 (UPDATED)
@@ -8,6 +16,8 @@ import { NextRequest, NextResponse } from 'next/server'
  */
 
 export async function POST(req: NextRequest) {
+  const denied = await requireDemoAdmin()
+  if (denied) return denied
   try {
     const body = await req.json()
 
@@ -32,7 +42,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const supabase = createClient()
+    const supabase = adminDb()
 
     // grammar_rules_v2 tablosuna insert
     const { data, error } = await supabase
@@ -174,6 +184,8 @@ export async function GET(req: NextRequest) {
  * - Güncellenmek istenen alanlar (opsiyonel)
  */
 export async function PUT(req: NextRequest) {
+  const denied = await requireDemoAdmin()
+  if (denied) return denied
   try {
     const body = await req.json()
 
@@ -184,7 +196,7 @@ export async function PUT(req: NextRequest) {
       )
     }
 
-    const supabase = createClient()
+    const supabase = adminDb()
 
     // Güvenli whitelist: update edilebilecek alanlar
     const allowedFields = [
@@ -264,6 +276,8 @@ export async function PUT(req: NextRequest) {
  * Örn: /api/grammar-rules?id=123
  */
 export async function DELETE(req: NextRequest) {
+  const denied = await requireDemoAdmin()
+  if (denied) return denied
   try {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
@@ -275,7 +289,7 @@ export async function DELETE(req: NextRequest) {
       )
     }
 
-    const supabase = createClient()
+    const supabase = adminDb()
 
     const { error } = await supabase
       .from('grammar_rules_v2')
