@@ -13,6 +13,7 @@ import { LexNav, StatusBadge, Syr, NoRole, Field, ui } from '../../components'
 import { SenseCategories } from './SenseCategories'
 import { Examples } from './Examples'
 import { Dictionaries } from './Dictionaries'
+import { MediaPanel } from '../../Media'
 
 type SenseDraft = {
   key: string
@@ -274,6 +275,13 @@ export default function LexemeEditPage() {
             </div>
           </section>
 
+          {!isNew && role && (
+            <section className="card" style={card}>
+              <h2 style={{ ...h2, marginBottom: 0 }}>Madde sesi ve görseli</h2>
+              <MediaPanel target={{ field: 'lexeme_id', id }} role={role} title="Okunuş ve resim (madde başı)" locked={locked} />
+            </section>
+          )}
+
           <section className="card" style={card}>
             <h2 style={h2}>Anlamlar</h2>
             <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: 0 }}>
@@ -306,6 +314,7 @@ export default function LexemeEditPage() {
                   </Field>
                 </div>
                 {s.id && role && <SenseCategories senseId={s.id} categories={categories} locked={locked} />}
+                {s.id && role && <MediaPanel target={{ field: 'sense_id', id: s.id }} role={role} title="Bu anlamın sesi / görseli" locked={locked} />}
               </div>
             ))}
             <button type="button" className="btn btn-sm btn-secondary" style={{ marginTop: '1rem' }}

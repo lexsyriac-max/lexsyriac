@@ -6,6 +6,7 @@ import {
   type ExampleRow, type ExampleDraft, type Lang, type Status,
 } from '@/lib/lex'
 import { StatusBadge, Syr, Field, ui } from '../../components'
+import { MediaPanel } from '../../Media'
 
 export type SenseRef = { id: string; sense_no: number; label: string }
 
@@ -126,6 +127,7 @@ export function Examples({ lexemeId, senses, role }: { lexemeId: string; senses:
                       {r.locus ? ` · ${sources.find((s) => s.id === r.source_work_id)?.siglum ?? ''} ${r.locus}` : ''}
                       {r.source_note ? ` · ${r.source_note}` : ''}
                     </div>
+                    {role && <MediaPanel target={{ field: 'example_id', id: r.id }} role={role} compact locked={locked} />}
                   </div>
                   <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     <StatusBadge status={r.status} />
