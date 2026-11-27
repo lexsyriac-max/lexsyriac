@@ -141,7 +141,7 @@ Syriac sentence: "${data.sentence}"`
               <h1 style={{ color: 'white', fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 700 }}>Cümle Motoru</h1>
               <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.875rem', marginTop: '0.3rem' }}>grammar_rules_v2 tabanlı gramer motoru</p>
             </div>
-            <Link href={`/${locale}/admin`} className="btn btn-ghost btn-sm" style={{ color: 'rgba(255,255,255,0.9)', border: '1px solid rgba(255,255,255,0.25)' }}>← Admin Panele Dön</Link>
+            <Link href={`/${locale}/admin/demo`} className="btn btn-ghost btn-sm" style={{ color: 'rgba(255,255,255,0.9)', border: '1px solid rgba(255,255,255,0.25)' }}>← Demo arşivi</Link>
           </div>
         </div>
       </div>

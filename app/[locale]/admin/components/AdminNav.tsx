@@ -7,83 +7,109 @@ import { createClient } from '@/lib/supabase'
 
 interface Props { locale: string }
 
-const NAV_GROUPS = [
-  { label: 'Lex (yeni)', items: [
-    { path: '/admin/lex/madde/yeni', icon: '＋', label: 'Yeni Madde' },
-    { path: '/admin/lex/inceleme', icon: '✓', label: 'İnceleme Kuyruğu' },
-    { path: '/admin/lex', icon: '📖', label: 'Maddeler' },
-    { path: '/admin/lex/paradigma', icon: '⚙️', label: 'Çekim Sınıfları' },
+// Menü yalnız yeni sistemi (lex) gösterir; her modül bitince kendi grubu eklenir.
+// Eski demo araçları "Demo arşivi" sayfasında durur (/admin/demo, yalnız demo admin).
+// Envanter: mimari/Demo_Envanteri.md
+
+type Viewer = { demoAdmin: boolean; lexRole: string | null }
+
+type NavItem = {
+  path: string                      // locale'siz yol, ör. /admin/lex/kaynak
+  label: string
+  match?: (rest: string) => boolean // locale'siz yol için etkinlik denetimi
+  show?: (v: Viewer) => boolean
+}
+type NavGroup = { label: string; items: NavItem[] }
+
+const under = (base: string) => (rest: string) => rest === base || rest.startsWith(base + '/')
+
+const NAV_GROUPS: NavGroup[] = [
+  { label: 'Sözlük', items: [
+    { path: '/admin/lex', label: 'Maddeler',
+      match: (r) => r === '/admin/lex' || (r.startsWith('/admin/lex/madde/') && r !== '/admin/lex/madde/yeni') },
+    { path: '/admin/lex/madde/yeni', label: '+ Yeni madde', match: (r) => r === '/admin/lex/madde/yeni' },
+    { path: '/admin/lex/inceleme', label: 'İnceleme kuyruğu' },
+    { path: '/admin/lex/kategori', label: 'Kategoriler' },
+    { path: '/admin/lex/kaynak', label: 'Kaynaklar' },
   ]},
-  { label: 'Kelime', items: [
-    { path: '/admin/words', icon: '📝', label: 'Kelime Ekle' },
-    { path: '/admin/import', icon: '⬆', label: 'Toplu Yükle' },
-    { path: '/admin/pending', icon: '⏳', label: 'Pending' },
-    { path: '/admin/lexscan', icon: '📄', label: 'LexScan' },
+  { label: 'Dilbilgisi', items: [
+    { path: '/admin/lex/paradigma', label: 'Çekim sınıfları' },
   ]},
-  { label: 'Gramer', items: [
-    { path: '/admin/grammar-engine', icon: '⚙️', label: 'Grammar Engine' },
-    { path: '/admin/grammar', icon: '📚', label: 'Gramer Kuralları' },
-    { path: '/admin/rules', icon: '✏️', label: 'Kural Editörü' },
+  { label: 'Ekip', items: [
+    { path: '/admin/lex/ekip', label: 'Ekip', show: (v) => v.lexRole === 'admin' },
   ]},
-  { label: 'Cümle', items: [
-    { path: '/admin/sentences', icon: '🔥', label: 'Cümle Motoru' },
-    { path: '/admin/sentence-manage', icon: '📋', label: 'Cümle Yönetimi' },
-  ]},
-  { label: 'Sistem', items: [
-    { path: '/admin/categories', icon: '🗂️', label: 'Kategoriler' },
-    { path: '/admin/users', icon: '👥', label: 'Kullanıcılar' },
-    { path: '/admin/source-pool', icon: '📂', label: 'Kaynak Havuzu' },
-    { path: '/resources', icon: '📜', label: 'Kaynak Metinleri' },
-  ]},
+]
+
+const DEMO_PATHS = [
+  '/admin/demo', '/admin/words', '/admin/import', '/admin/pending', '/admin/lexscan',
+  '/admin/grammar-engine', '/admin/grammar', '/admin/rules', '/admin/sentences',
+  '/admin/sentence-manage', '/admin/categories', '/admin/users', '/admin/source-pool',
+  '/admin/create-user', '/admin/update-role', '/admin/conjugation',
 ]
 
 export default function AdminNav({ locale }: Props) {
   const pathname = usePathname()
+  const rest = pathname.startsWith(`/${locale}`) ? pathname.slice(locale.length + 1) || '/' : pathname
   const [openGroup, setOpenGroup] = useState<string | null>(null)
   const [dropdownLeft, setDropdownLeft] = useState(0)
   const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({})
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
-  // Demo admin bütün grupları görür; yalnız lex ekibinde olan hesap sadece Lex grubunu.
-  const [isDemoAdmin, setIsDemoAdmin] = useState(false)
+  const [viewer, setViewer] = useState<Viewer>({ demoAdmin: false, lexRole: null })
 
   useEffect(() => {
     let alive = true
-    const apply = (v: boolean) => { if (alive) setIsDemoAdmin(v) }
+    const apply = (v: Viewer) => { if (alive) setViewer(v) }
     const sb = createClient()
     sb.auth.getSession()
-      .then(({ data: { session } }) => session
-        ? sb.from('profiles').select('role').eq('id', session.user.id).maybeSingle()
-            .then(({ data }) => data?.role === 'admin')
-        : false)
+      .then(async ({ data: { session } }): Promise<Viewer> => {
+        if (!session) return { demoAdmin: false, lexRole: null }
+        const uid = session.user.id
+        const [p, l] = await Promise.all([
+          sb.from('profiles').select('role').eq('id', uid).maybeSingle(),
+          sb.schema('lex').from('user_role').select('role').eq('user_id', uid).maybeSingle(),
+        ])
+        return { demoAdmin: p.data?.role === 'admin', lexRole: (l.data?.role as string | undefined) ?? null }
+      })
       .then(apply)
     return () => { alive = false }
   }, [])
 
-  const groups = isDemoAdmin ? NAV_GROUPS : NAV_GROUPS.slice(0, 1)
-
-  const isActive = (path: string) => pathname.endsWith(path) || pathname.includes(path + '/')
-
-  function handleMouseEnter(label: string) {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
-    const btn = buttonRefs.current[label]
-    if (btn) {
-      const rect = btn.getBoundingClientRect()
-      setDropdownLeft(rect.left)
-    }
-    setOpenGroup(label)
-  }
-
-  function handleMouseLeave() {
-    timeoutRef.current = setTimeout(() => setOpenGroup(null), 150)
-  }
-
-  function handleDropdownEnter() {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current)
-  }
+  // Sayfa değişince açık menüyü kapat
+  useEffect(() => {
+    const t = setTimeout(() => setOpenGroup(null), 0)
+    return () => clearTimeout(t)
+  }, [pathname])
 
   useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }, [])
 
-  const currentGroup = groups.find(g => g.label === openGroup)
+  const groups = NAV_GROUPS
+    .map((g) => ({ ...g, items: g.items.filter((it) => !it.show || it.show(viewer)) }))
+    .filter((g) => g.items.length > 0)
+
+  const isActive = (it: NavItem) => (it.match ?? under(it.path))(rest)
+  const inDemo = DEMO_PATHS.some((p) => under(p)(rest))
+
+  function openAt(label: string) {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    const btn = buttonRefs.current[label]
+    if (btn) setDropdownLeft(btn.getBoundingClientRect().left)
+    setOpenGroup(label)
+  }
+  function closeSoon() {
+    timeoutRef.current = setTimeout(() => setOpenGroup(null), 150)
+  }
+  function keepOpen() {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+  }
+
+  const currentGroup = groups.find((g) => g.label === openGroup)
+
+  const tabStyle = (on: boolean): React.CSSProperties => ({
+    display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.65rem', borderRadius: 6,
+    border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0,
+    textDecoration: 'none', background: on ? 'rgba(255,255,255,0.18)' : 'transparent',
+    color: on ? 'white' : 'rgba(255,255,255,0.8)',
+  })
 
   return (
     <nav style={{ background: '#0F3D47', borderBottom: '1px solid rgba(255,255,255,0.1)', position: 'sticky', top: 0, zIndex: 1000 }}>
@@ -94,46 +120,64 @@ export default function AdminNav({ locale }: Props) {
         </Link>
         <span style={{ color: 'rgba(255,255,255,0.2)', flexShrink: 0 }}>|</span>
 
-        <Link href={`/${locale}/admin`} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.65rem', borderRadius: 6, textDecoration: 'none', fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0, background: pathname === `/${locale}/admin` ? 'rgba(255,255,255,0.18)' : 'transparent', color: 'white' }}>
-          📊 Dashboard
-        </Link>
-        <span style={{ color: 'rgba(255,255,255,0.2)', flexShrink: 0 }}>|</span>
-
-        {groups.map(group => {
-          const hasActive = group.items.some(item => isActive(item.path))
+        {groups.map((group) => {
+          const hasActive = group.items.some(isActive)
+          // Tek öğeli grup doğrudan bağlantıdır
+          if (group.items.length === 1) {
+            const it = group.items[0]
+            return (
+              <Link key={group.label} href={`/${locale}${it.path}`} style={tabStyle(hasActive)}>
+                {it.label}
+              </Link>
+            )
+          }
           const isOpen = openGroup === group.label
           return (
             <button
               key={group.label}
-              ref={el => { buttonRefs.current[group.label] = el }}
-              onMouseEnter={() => handleMouseEnter(group.label)}
-              onMouseLeave={handleMouseLeave}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.35rem 0.65rem', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0, background: hasActive || isOpen ? 'rgba(255,255,255,0.18)' : 'transparent', color: hasActive || isOpen ? 'white' : 'rgba(255,255,255,0.8)' }}
+              type="button"
+              ref={(el) => { buttonRefs.current[group.label] = el }}
+              onMouseEnter={() => openAt(group.label)}
+              onMouseLeave={closeSoon}
+              onClick={() => (isOpen ? setOpenGroup(null) : openAt(group.label))}
+              aria-expanded={isOpen}
+              style={tabStyle(hasActive || isOpen)}
             >
               {group.label} <span style={{ fontSize: '0.6rem', opacity: 0.7 }}>▼</span>
             </button>
           )
         })}
+
+        {viewer.demoAdmin && (
+          <Link
+            href={`/${locale}/admin/demo`}
+            title="Eski demo sitenin yönetim araçları"
+            style={{ ...tabStyle(inDemo), marginLeft: 'auto', fontWeight: 400, fontSize: '0.75rem', color: inDemo ? 'white' : 'rgba(255,255,255,0.45)' }}
+          >
+            Demo arşivi
+          </Link>
+        )}
       </div>
 
-      {/* Dropdown — position fixed, üstte */}
       {openGroup && currentGroup && (
         <div
-          onMouseEnter={handleDropdownEnter}
-          onMouseLeave={handleMouseLeave}
+          onMouseEnter={keepOpen}
+          onMouseLeave={closeSoon}
           style={{ position: 'fixed', top: 45, left: dropdownLeft, background: '#0D3540', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '0.4rem', minWidth: 190, zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
         >
-          {currentGroup.items.map(item => (
-            <Link
-              key={item.path}
-              href={`/${locale}${item.path}`}
-              onClick={() => setOpenGroup(null)}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: 6, textDecoration: 'none', fontSize: '0.82rem', whiteSpace: 'nowrap', background: isActive(item.path) ? 'rgba(255,255,255,0.12)' : 'transparent', color: isActive(item.path) ? 'white' : 'rgba(255,255,255,0.8)', fontWeight: isActive(item.path) ? 700 : 400, marginBottom: 2 }}
-            >
-              <span>{item.icon}</span>
-              <span>{item.label}</span>
-            </Link>
-          ))}
+          {currentGroup.items.map((item) => {
+            const on = isActive(item)
+            return (
+              <Link
+                key={item.path}
+                href={`/${locale}${item.path}`}
+                onClick={() => setOpenGroup(null)}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', borderRadius: 6, textDecoration: 'none', fontSize: '0.82rem', whiteSpace: 'nowrap', background: on ? 'rgba(255,255,255,0.12)' : 'transparent', color: on ? 'white' : 'rgba(255,255,255,0.8)', fontWeight: on ? 700 : 400, marginBottom: 2 }}
+              >
+                {item.label}
+              </Link>
+            )
+          })}
         </div>
       )}
     </nav>

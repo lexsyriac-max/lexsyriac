@@ -226,11 +226,11 @@ export default function AdminUsersPage() {
               </h1>
             </div>
             <Link
-              href={`/${locale}/admin`}
+              href={`/${locale}/admin/demo`}
               className="btn btn-ghost btn-sm"
               style={{ color: 'rgba(255,255,255,0.9)', border: '1px solid rgba(255,255,255,0.25)' }}
             >
-              ← Admin Panele Dön
+              ← Demo arşivi
             </Link>
           </div>
         </div>

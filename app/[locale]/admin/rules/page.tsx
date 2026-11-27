@@ -298,7 +298,7 @@ export default function RulesPage() {
               </h1>
             </div>
             <Link
-              href={`/${locale}/admin`}
+              href={`/${locale}/admin/demo`}
               style={{
                 color: 'white',
                 border: '1px solid rgba(255,255,255,0.4)',
@@ -307,7 +307,7 @@ export default function RulesPage() {
                 textDecoration: 'none',
               }}
             >
-              ← Admin Panele Dön
+              ← Demo arşivi
             </Link>
           </div>
         </div>
