@@ -84,7 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       router.refresh()
 
       if (profile?.role === 'admin') {
-        router.replace(`/${locale}/admin`)
+        router.replace(`/${locale}/admin/lex`)
       } else if (lexRole) {
         router.replace(`/${locale}/admin/lex`)
       } else {
