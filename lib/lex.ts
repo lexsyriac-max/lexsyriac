@@ -440,6 +440,7 @@ export type SourceWork = {
   license: LicenseKind
   license_note: string | null
   iiif_manifest: string | null
+  images_public: boolean
   notes: string | null
   source_note: string | null
   status: Status
@@ -447,7 +448,7 @@ export type SourceWork = {
 }
 export const SOURCE_SELECT =
   'id,kind,siglum,title,author,editor,year_text,edition,publisher,library,shelfmark,script,variety_code,' +
-  'license,license_note,iiif_manifest,notes,source_note,status,updated_at'
+  'license,license_note,iiif_manifest,images_public,notes,source_note,status,updated_at'
 
 export type PageRow = {
   id: string
@@ -573,4 +574,104 @@ export function sourceError(e: { code?: string; message?: string } | null): stri
   if (/page_image_in_work/.test(m)) return 'Görsel yolu bu esere ait değil.'
   if (e.code === '23503' && /source_work/.test(m)) return 'Bu esere bağlı örnek cümle var; önce onları başka esere taşıyın veya kaynağını kaldırın.'
   return explainError(e)
+}
+
+// ---------------------------------------------------------------------
+// Medya (008): ses ve görsel — madde, anlam, form veya örneğe bağlı
+// ---------------------------------------------------------------------
+export type MediaKind = 'audio' | 'image'
+export type MediaTarget = { field: 'lexeme_id' | 'sense_id' | 'word_form_id' | 'example_id'; id: string }
+export type MediaRow = {
+  id: string
+  kind: MediaKind
+  storage_path: string
+  vocalization: 'west' | 'east' | null
+  speaker: string | null
+  license: LicenseKind
+  credit: string | null
+  source_note: string | null
+  status: Status
+  created_at: string
+}
+export const MEDIA_SELECT = 'id,kind,storage_path,vocalization,speaker,license,credit,source_note,status,created_at'
+export const MEDIA_BUCKET = 'lex-media'
+export const MEDIA_MAX_BYTES = 25 * 1024 * 1024
+export const VOCALIZATION_LABEL: Record<'west' | 'east', string> = { west: 'Batı okunuşu', east: 'Doğu okunuşu' }
+
+const MEDIA_EXT: Record<string, string> = {
+  'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/aac': 'aac', 'audio/ogg': 'ogg',
+  'audio/webm': 'webm', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/flac': 'flac',
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
+}
+
+// Tarayıcının verdiği türü sadeleştir ("audio/webm;codecs=opus" → "audio/webm")
+export function baseMime(t: string): string {
+  return (t || '').split(';')[0].trim().toLowerCase()
+}
+
+export function mediaKindOf(f: Blob): MediaKind | null {
+  const m = baseMime(f.type)
+  if (!MEDIA_EXT[m]) return null
+  return m.startsWith('audio/') ? 'audio' : 'image'
+}
+
+export async function fetchMedia(t: MediaTarget): Promise<{ rows: MediaRow[]; error: string }> {
+  const { data, error } = await lexDb().from('media').select(MEDIA_SELECT).eq(t.field, t.id).order('created_at')
+  return { rows: (data ?? []) as unknown as MediaRow[], error: error ? explainError(error) : '' }
+}
+
+// Kova gizli: dosyalar süreli imzalı adresle açılır (1 saat)
+export async function signedMediaUrls(paths: string[]): Promise<Record<string, string>> {
+  const uniq = Array.from(new Set(paths.filter(Boolean)))
+  if (!uniq.length) return {}
+  const { data } = await createClient().storage.from(MEDIA_BUCKET).createSignedUrls(uniq, 3600)
+  const out: Record<string, string> = {}
+  for (const d of data ?? []) if (d.path && d.signedUrl) out[d.path] = d.signedUrl
+  return out
+}
+
+export type MediaMeta = {
+  vocalization: '' | 'west' | 'east'
+  speaker: string
+  license: LicenseKind
+  credit: string
+  source_note: string
+}
+
+// Önce dosya (<tür>/<id>.<uzantı>), sonra kayıt. Kayıt yazılamazsa dosya kovada
+// sahipsiz kalır; admin "Sahipsiz dosyalar" listesinden siler.
+export async function addMedia(t: MediaTarget, f: Blob, meta: MediaMeta, name = 'dosya'): Promise<{ row?: MediaRow; error: string }> {
+  const mime = baseMime(f.type)
+  const kind = mediaKindOf(f)
+  if (!kind) return { error: `${name}: desteklenmeyen dosya türü (${mime || 'bilinmiyor'})` }
+  if (f.size > MEDIA_MAX_BYTES) return { error: `${name}: 25 MB sınırını aşıyor` }
+  const id = crypto.randomUUID()
+  const path = `${kind}/${id}.${MEDIA_EXT[mime]}`
+  const { error: ue } = await createClient().storage.from(MEDIA_BUCKET)
+    .upload(path, f, { contentType: mime, upsert: false, cacheControl: '3600' })
+  if (ue) return { error: `${name}: ${ue.message}` }
+  const { data, error } = await lexDb().from('media').insert({
+    id, kind, storage_path: path, [t.field]: t.id,
+    vocalization: kind === 'audio' ? meta.vocalization || null : null,
+    speaker: meta.speaker.trim() || null,
+    license: meta.license,
+    credit: meta.credit.trim() || null,
+    source_note: meta.source_note.trim() || null,
+  }).select(MEDIA_SELECT).single()
+  if (error) return { error: `${name}: ${explainError(error)}` }
+  return { row: data as unknown as MediaRow, error: '' }
+}
+
+// Admin: önce kayıt, sonra dosya (kayıt silinemezse dosyaya dokunulmaz)
+export async function deleteMedia(m: MediaRow): Promise<string> {
+  const { error, count } = await lexDb().from('media').delete({ count: 'exact' }).eq('id', m.id)
+  if (error || !count) return error ? explainError(error) : 'Silinemedi (yetki yok).'
+  const { error: se } = await createClient().storage.from(MEDIA_BUCKET).remove([m.storage_path])
+  return se ? `Kayıt silindi, dosya silinemedi: ${se.message}` : ''
+}
+
+export type OrphanFile = { bucket: string; name: string; created_at: string }
+export async function fetchOrphanFiles(): Promise<{ rows: OrphanFile[]; error: string }> {
+  const { data, error } = await lexDb().rpc('orphan_files')
+  return { rows: (data ?? []) as OrphanFile[], error: error ? explainError(error) : '' }
 }
