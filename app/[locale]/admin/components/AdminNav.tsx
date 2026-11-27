@@ -82,6 +82,20 @@ export default function AdminNav({ locale }: Props) {
 
   useEffect(() => () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }, [])
 
+  // Dokunmatik ekranda menü dışına dokununca kapat (fareyle üstüne gelince açılır,
+  // tıklama yalnız açar; kapatma ayrılınca, dışarı dokununca ya da sayfa değişince)
+  useEffect(() => {
+    if (!openGroup) return
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node | null
+      const inButton = Object.values(buttonRefs.current).some((b) => b && t && b.contains(t))
+      const inMenu = t instanceof Element && t.closest('[data-admin-dropdown]')
+      if (!inButton && !inMenu) setOpenGroup(null)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [openGroup])
+
   const groups = NAV_GROUPS
     .map((g) => ({ ...g, items: g.items.filter((it) => !it.show || it.show(viewer)) }))
     .filter((g) => g.items.length > 0)
@@ -139,7 +153,7 @@ export default function AdminNav({ locale }: Props) {
               ref={(el) => { buttonRefs.current[group.label] = el }}
               onMouseEnter={() => openAt(group.label)}
               onMouseLeave={closeSoon}
-              onClick={() => (isOpen ? setOpenGroup(null) : openAt(group.label))}
+              onClick={() => openAt(group.label)}
               aria-expanded={isOpen}
               style={tabStyle(hasActive || isOpen)}
             >
@@ -161,6 +175,7 @@ export default function AdminNav({ locale }: Props) {
 
       {openGroup && currentGroup && (
         <div
+          data-admin-dropdown
           onMouseEnter={keepOpen}
           onMouseLeave={closeSoon}
           style={{ position: 'fixed', top: 45, left: dropdownLeft, background: '#0D3540', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '0.4rem', minWidth: 190, zIndex: 9999, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
