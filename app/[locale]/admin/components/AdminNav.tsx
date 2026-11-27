@@ -35,6 +35,9 @@ const NAV_GROUPS: NavGroup[] = [
   { label: 'Dilbilgisi', items: [
     { path: '/admin/lex/paradigma', label: 'Çekim sınıfları' },
   ]},
+  { label: 'Öğren', items: [
+    { path: '/admin/lex/ogren', label: 'Üniteler ve dersler' },
+  ]},
   { label: 'Ekip', items: [
     { path: '/admin/lex/ekip', label: 'Ekip', show: (v) => v.lexRole === 'admin' },
   ]},

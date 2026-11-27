@@ -675,3 +675,119 @@ export async function fetchOrphanFiles(): Promise<{ rows: OrphanFile[]; error: s
   const { data, error } = await lexDb().rpc('orphan_files')
   return { rows: (data ?? []) as OrphanFile[], error: error ? explainError(error) : '' }
 }
+
+// ---------------------------------------------------------------------
+// Öğrenme editörü (011): ünite → ders → içerik → alıştırma
+// ---------------------------------------------------------------------
+export type UnitRow = {
+  id: string; slug: string; seq: number; level: string | null; title_tr: string; title_en: string | null
+  description: string | null; source_note: string | null; status: Status
+}
+export const UNIT_SELECT = 'id,slug,seq,level,title_tr,title_en,description,source_note,status'
+export const UNIT_SLUG_RE = /^[a-z0-9-]+$/
+
+export type LessonRow = {
+  id: string; unit_id: string; seq: number; title_tr: string; title_en: string | null
+  goal: string | null; intro: string | null; source_note: string | null; status: Status
+}
+export const LESSON_SELECT = 'id,unit_id,seq,title_tr,title_en,goal,intro,source_note,status'
+
+export type ItemKind = 'sense' | 'word_form' | 'example' | 'paradigm' | 'text'
+export const ITEM_KIND_LABEL: Record<ItemKind, string> = {
+  sense: 'Kelime (anlam)', word_form: 'Çekimli form', example: 'Örnek cümle', paradigm: 'Çekim tablosu', text: 'Açıklama metni',
+}
+
+// lex.lesson_content() çıktısındaki içerik satırı
+export type ContentItem = {
+  id: string; seq: number; kind: ItemKind; note?: string
+  body?: string
+  sense_id?: string; lexeme_id?: string; word_form_id?: string; example_id?: string; paradigm_class_id?: string
+  skeleton?: string; west?: string; east?: string; transliteration?: string; pos?: string; gender?: string
+  lemma?: string; verb_form?: VerbForm; person?: Person; number?: GramNumber; state?: GramState
+  meaning?: string; definition?: string; translation?: string; code?: string; label?: string
+  published?: boolean
+  audio?: { path: string; vocalization: 'west' | 'east' | null }[]
+}
+export type ExerciseKind =
+  'flashcard' | 'multiple_choice' | 'matching' | 'listening' | 'fill_blank' | 'sentence_build' | 'reading'
+export type ExerciseConfig = {
+  items?: string[]; lang?: Lang
+  front?: 'syriac' | 'meaning'
+  direction?: 'syr_to_meaning' | 'meaning_to_syr'
+  choices?: number; pairs?: number
+  blanks?: Record<string, number>
+  show_translation?: boolean
+}
+export type ExerciseRow = {
+  id: string; lesson_id: string; seq: number; kind: ExerciseKind; title: string | null
+  instructions: string | null; config: ExerciseConfig; source_note: string | null; status: Status
+}
+export const EXERCISE_SELECT = 'id,lesson_id,seq,kind,title,instructions,config,source_note,status'
+export type LessonContent = {
+  lesson: LessonRow & { unit: { id: string; slug: string; title_tr: string; level?: string; status: Status } }
+  lang: Lang
+  items: ContentItem[]
+  exercises: (Omit<ExerciseRow, 'lesson_id' | 'source_note'>)[]
+}
+
+export const EXERCISE_KIND_LABEL: Record<ExerciseKind, string> = {
+  flashcard: 'Kelime kartı', multiple_choice: 'Çoktan seçmeli', matching: 'Eşleştirme', listening: 'Dinleme',
+  fill_blank: 'Boşluk doldurma', sentence_build: 'Cümle kurma', reading: 'Okuma',
+}
+export const EXERCISE_KIND_HELP: Record<ExerciseKind, string> = {
+  flashcard: 'Kartın bir yüzünde Süryanice, öbür yüzünde anlam.',
+  multiple_choice: 'Bir kelime gösterilir, doğru anlam (veya tersi) seçenekler arasından seçilir.',
+  matching: 'Süryanice kelimeler anlamlarıyla eşleştirilir.',
+  listening: 'Ses dinlenir, doğru kelime seçilir. Yalnız sesi olan içerik kullanılır.',
+  fill_blank: 'Örnek cümlede bir kelime boş bırakılır, seçeneklerden tamamlanır.',
+  sentence_build: 'Örnek cümlenin kelimeleri karışık verilir, doğru sıraya dizilir.',
+  reading: 'Örnek cümle okunur; çeviri istenirse gösterilir.',
+}
+// Kelime alıştırmaları anlam/form, cümle alıştırmaları örnek içerikle çalışır (SQL'deki kuralın aynısı)
+export const VOCAB_EXERCISES: ExerciseKind[] = ['flashcard', 'multiple_choice', 'matching', 'listening']
+export function itemFitsExercise(kind: ExerciseKind, item: { kind: ItemKind }): boolean {
+  return VOCAB_EXERCISES.includes(kind)
+    ? item.kind === 'sense' || item.kind === 'word_form'
+    : item.kind === 'example'
+}
+// Türün varsayılan ayarı (yeni alıştırma)
+export function defaultConfig(kind: ExerciseKind): ExerciseConfig {
+  switch (kind) {
+    case 'flashcard': return { front: 'syriac', lang: 'tr' }
+    case 'multiple_choice': return { direction: 'syr_to_meaning', choices: 4, lang: 'tr' }
+    case 'matching': return { direction: 'syr_to_meaning', pairs: 5, lang: 'tr' }
+    case 'listening': return { choices: 4, lang: 'tr' }
+    case 'fill_blank': return { blanks: {}, choices: 4, lang: 'tr' }
+    case 'sentence_build': return { lang: 'tr' }
+    case 'reading': return { show_translation: true, lang: 'tr' }
+  }
+}
+
+export function learningError(e: { code?: string; message?: string } | null): string {
+  if (!e) return ''
+  if (e.code === '23505') {
+    if (/unit_slug_key/.test(e.message ?? '')) return 'Bu kısa adla (slug) bir ünite zaten var.'
+    return 'Sıra çakıştı; sayfayı yenileyip tekrar deneyin.'
+  }
+  if (e.code === '23503' && e.message && !/violates foreign key/.test(e.message)) return e.message
+  if (e.code === '23514' && e.message && /yayımlanamaz/.test(e.message)) return e.message
+  if (e.code === '23514') return 'Kayıt kuralı tutmadı: ' + (e.message ?? '')
+  return explainError(e)
+}
+
+// Kardeş kayıtların tamamını yeni sırayla yaz (tek işlem: lex.reorder)
+export async function reorder(table: 'unit' | 'lesson' | 'lesson_item' | 'exercise', ids: string[]): Promise<string> {
+  const { error } = await lexDb().rpc('reorder', { p_table: table, p_ids: ids })
+  return error ? learningError(error) : ''
+}
+export function moved<T>(list: T[], i: number, d: -1 | 1): T[] {
+  const j = i + d
+  if (j < 0 || j >= list.length) return list
+  const out = list.slice()
+  ;[out[i], out[j]] = [out[j], out[i]]
+  return out
+}
+export async function fetchLessonContent(id: string, lang: Lang = 'tr'): Promise<{ content: LessonContent | null; error: string }> {
+  const { data, error } = await lexDb().rpc('lesson_content', { p_lesson: id, p_lang: lang })
+  return { content: (data as LessonContent | null) ?? null, error: error ? learningError(error) : '' }
+}
